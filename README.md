@@ -1,0 +1,1 @@
+# Explorador-de-Mercado-Binance-EDA
