@@ -120,7 +120,7 @@ python main.py
 
 ---
 
-## 📊 Exemplo de Uso
+## Exemplo de Uso
 
 ```python
 from controllers.controllers_manager import ControllersManager
