@@ -103,7 +103,7 @@ class BinanceAccountService:
             logger.error(f"Erro ao obter trades para {symbol}: {e}")
             return f"An error occurred: {e}"
 
-    def get_asset_dividend_history(self, asset: Optional[str] = None) -> Union[Dict, str]:
+    def get_asset_dividend_history(self, symbol: Optional[str] = None) -> Union[Dict, str]:
         """
         Obtém histórico de dividendos de ativos.
         
@@ -114,8 +114,8 @@ class BinanceAccountService:
             Dict com histórico de dividendos ou mensagem de erro
         """
         try:
-            dividend_history = self.client.get_asset_dividend_history(asset=asset)
-            logger.debug(f"Histórico de dividendos obtido para {asset}")
+            dividend_history = self.client.get_asset_dividend_history(symbol=symbol)
+            logger.debug(f"Histórico de dividendos obtido para {symbol}")
             return dividend_history
         except Exception as e:
             logger.error(f"Erro ao obter histórico de dividendos: {e}")
