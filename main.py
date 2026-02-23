@@ -3,7 +3,6 @@ Explorador de Mercado Binance - Sistema de Análise Exploratória de Dados
 
 Extrai dados da API Binance e estrutura em DataFrames para análise.
 """
-import openpyxl
 import logging
 from config import setup_logging
 from controllers.controllers_manager import ControllersManager
