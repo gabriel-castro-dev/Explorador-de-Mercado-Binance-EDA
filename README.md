@@ -1,15 +1,10 @@
 # Explorador de Mercado Binance - EDA
 
-Sistema de Análise Exploratória de Dados (EDA) do mercado de criptomoedas com arquitetura em camadas, extraindo informações da API Binance, transformando e estruturando dados em DataFrames para análise detalhada.
+Sistema de Análise Exploratória de Dados (EDA) do mercado de criptomoedas com arquitetura em camadas, extraindo informações da API Binance, transformando e estruturando dados em DataFrames e BI para análise detalhada.
 
-**Projeto desenvolvido para demonstrar:** Manipulação avançada de dados, arquitetura em camadas, integração com APIs REST e boas práticas em Python.
+**Projeto desenvolvido para demonstrar:** Manipulação avançada de dados, arquitetura em camadas, análise de dados, integração com APIs REST e boas práticas em Python.
 
-## Status
-
--  **Implementado**: Serviços, Controllers e lógica de requisições
--  **Em Desenvolvimento**: Exportação para XLSX e análise de dados com BI
-
----
+<img width="1413" height="793" alt="image (1)" src="https://github.com/user-attachments/assets/939d1bba-b8ed-48a8-b79e-56f78c391a31" />
 
 ##  Arquitetura
 
