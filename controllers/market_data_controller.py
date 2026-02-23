@@ -103,44 +103,46 @@ class MarketDataController:
         logger.error("Falha ao obter tickers após todas as tentativas")
         return pd.DataFrame()    
             
-    def get_ticker_24hr(self, symbol: str) -> pd.DataFrame:
+    def get_ticker_24hr(self) -> pd.DataFrame:
         """
-        Obtém dados de 24h de um par específico.
-        
-        Args:
-            symbol: Par de moedas (ex: 'BTCUSDT')
+        Obtém dados de 24h dos pares USDT.
         
         Returns:
             DataFrame com dados 24h ou DataFrame vazio se falhar
         """
         for attempt in range(MAX_RETRIES):
-            data = self.market_data_service.get_ticker_24hr(symbol=symbol) 
-            if isinstance(data, dict):
-                df = pd.DataFrame([data])
-                ignorar_colunas = ['symbol', 'openTime', 'closeTime', 'firstId', 'lastId', 'count']
-                cols_to_numeric = [col for col in df.columns if col not in ignorar_colunas]
-                df[cols_to_numeric] = df[cols_to_numeric].astype(float, errors='ignore').round(8).dropna()
-                df['openTime'] = pd.to_datetime(df['openTime'], unit='ms')
-                df['closeTime'] = pd.to_datetime(df['closeTime'], unit='ms')
-                df[['symbol', 'firstId', 'lastId']] = df[['symbol', 'firstId', 'lastId']].astype(str)
-                df['count'] = df['count'].astype(int)
-                logger.info(f"Dados 24h obtidos para {symbol}")
-                return df
-            elif not data or isinstance(data, str):
-                if ("APIError(code=-2015)" in data):
-                    logger.error(f"Erro de permissão para {symbol}")
-                    raise PermissionError(f"Failed to retrieve last 24hrs ticker for {symbol}, user doesn't have permission to do this request.")
-                if ("APIError(code=-1100)" in data or "APIError(code=-1121)" in data):
-                    logger.error(f"Símbolo inválido: {symbol}")
-                    raise KeyError(f"Failed to get ticker 24hr for {symbol}, invalid symbol provided.")   
-                logger.warning(f"[Tentativa {attempt + 1}/{MAX_RETRIES}] {data} - verificando conectividade")
-                status = self.ping()
-                if status != "Binance API is reachable.":
-                    logger.warning(f"Problema de conectividade. Aguardando {RETRY_DELAY}s...")
-                    time.sleep(RETRY_DELAY)                                      
-              
-        logger.error(f"Falha ao obter dados 24h para {symbol}")
-        return pd.DataFrame()    
+            df_tickers = self.get_tickers()
+            if df_tickers.empty:
+                logger.error("Não foi possível obter a lista de símbolos base.")
+                return pd.DataFrame()
+            symbols = df_tickers['symbol'].tolist()
+            data_list = []
+            for symbol in symbols:
+                    data = self.market_data_service.get_ticker_24hr(symbol=symbol) 
+                    if isinstance(data, dict):
+                        data_list.append(data)
+                    elif not data or isinstance(data, str):
+                        if ("APIError(code=-2015)" in data):
+                            logger.error(f"Erro de permissão para {symbol}")
+                            raise PermissionError(f"Failed to retrieve last 24hrs ticker for {symbol}, user doesn't have permission to do this request.")
+                        if ("APIError(code=-1100)" in data or "APIError(code=-1121)" in data):
+                            logger.error(f"Símbolo inválido: {symbol}")
+                            raise KeyError(f"Failed to get ticker 24hr for {symbol}, invalid symbol provided.")   
+                        logger.warning(f"[Tentativa {attempt + 1}/{MAX_RETRIES}] {data} - verificando conectividade")
+                        status = self.ping()
+                        if status != "Binance API is reachable.":
+                            logger.warning(f"Problema de conectividade. Aguardando {RETRY_DELAY}s...")
+                            time.sleep(RETRY_DELAY)                                      
+            df = pd.DataFrame(data_list)
+            ignorar_colunas = ['symbol', 'openTime', 'closeTime', 'firstId', 'lastId', 'count']
+            cols_to_numeric = [col for col in df.columns if col not in ignorar_colunas]
+            df[cols_to_numeric] = df[cols_to_numeric].astype(float, errors='ignore').round(8).dropna()
+            df['openTime'] = pd.to_datetime(df['openTime'], unit='ms')
+            df['closeTime'] = pd.to_datetime(df['closeTime'], unit='ms')
+            df[['symbol', 'firstId', 'lastId']] = df[['symbol', 'firstId', 'lastId']].astype(str)
+            df['count'] = df['count'].astype(int)
+            logger.info(f"Dados 24h obtidos para {len(symbols)} símbolos")
+            return df    
     
     def get_orderbook_tickers(self, symbol: str) -> pd.DataFrame:
         """
@@ -199,8 +201,7 @@ class MarketDataController:
                 df['Close_Time'] = pd.to_datetime(df['Close_Time'], unit='ms')
                 df['Number_of_Trades'] = df['Number_of_Trades'].astype(int)
                 df[['Open', 'High', 'Low', 'Close', 'Volume', 'Quote_Asset_Volume', 
-                    'Taker_Buy_Base_Asset_Volume', 'Taker_Buy_Quote_Asset_Volume']] = \
-                    df[['Open', 'High', 'Low', 'Close', 'Volume', 'Quote_Asset_Volume',
+                    'Taker_Buy_Base_Asset_Volume', 'Taker_Buy_Quote_Asset_Volume']] = df[['Open', 'High', 'Low', 'Close', 'Volume', 'Quote_Asset_Volume',
                         'Taker_Buy_Base_Asset_Volume', 'Taker_Buy_Quote_Asset_Volume']].apply(
                             pd.to_numeric, errors='coerce').round(8).dropna()   
                 logger.info(f"Obtidas {len(df)} k-lines para {symbol} ({interval})")
@@ -351,7 +352,7 @@ class MarketDataController:
         logger.error(f"Falha ao obter preço médio para {symbol}")
         return pd.DataFrame()        
     
-    def get_recent_trades(self, symbol: str) -> pd.DataFrame:
+    def get_recent_trades(self, symbol: str, limit: None) -> pd.DataFrame:
         """
         Obtém trades recentes de um par.
         
@@ -362,11 +363,10 @@ class MarketDataController:
             DataFrame com trades recentes ou DataFrame vazio se falhar
         """
         for attempt in range(MAX_RETRIES):
-            data = self.market_data_service.get_recent_trades(symbol=symbol)
+            data = self.market_data_service.get_recent_trades(symbol=symbol, limit=limit)
             if isinstance(data, list):
                 df = pd.DataFrame(data)
                 df['id'] = df['id'].astype(int)
-                df = df.drop_duplicates(subset=['id']).reset_index(drop=True).set_index('id')
                 df["price"] = df["price"].astype(float, errors='ignore').round(2).dropna()
                 df[['qty', 'quoteQty']] = df[['qty', 'quoteQty']].astype(float, errors='ignore').round(8).dropna()
                 df['time'] = pd.to_datetime(df['time'], unit="ms").dt.strftime('%d/%m/%Y %H:%M:%S')
