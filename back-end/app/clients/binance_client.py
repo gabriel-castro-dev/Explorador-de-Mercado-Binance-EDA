@@ -51,7 +51,7 @@ class BinanceClient:
             self.MAX_RETRIES = settings.MAX_RETRIES
             self.RETRY_DELAY = settings.RETRY_DELAY
             logger.info("BinanceClient inicializado com sucesso")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Falha crítica ao conectar na API: {e}")
             raise RuntimeError(
                 f"Falha crítica: Não foi possível conectar à API. Erro: {e}"
@@ -73,7 +73,7 @@ class BinanceClient:
             logger.warning(f"Erro inesperado ao fazer ping: {resultado}")
             return False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Erro ao fazer ping na API: {e}")
             return False
 
@@ -87,7 +87,7 @@ class BinanceClient:
         try:
             data = self.client.get_server_time()
             return data
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Erro ao obter tempo do servidor: {e}")
             return None
 
@@ -101,7 +101,7 @@ class BinanceClient:
         try:
             data = self.client.get_system_status()
             return data
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Erro ao obter status do sistema: {e}")
             return None
 
@@ -117,7 +117,7 @@ class BinanceClient:
                 data = self.client.get_all_tickers()
                 if isinstance(data, list) and len(data) > 0:
                     return data
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 error_msg = str(e)
                 if "APIError(code=-2015)" in error_msg:
                     logger.error("Erro de permissão ao obter tickers")
@@ -146,7 +146,7 @@ class BinanceClient:
                 data = self.client.get_ticker(symbol=symbol)
                 if isinstance(data, dict):
                     return data
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 error_msg = str(e)
                 if "APIError(code=-2015)" in error_msg:
                     logger.error(f"Erro de permissão para {symbol}")
@@ -186,7 +186,7 @@ class BinanceClient:
                 data = self.client.get_orderbook_tickers(symbol=symbol)
                 if isinstance(data, (list, dict)):
                     return data
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 error_msg = str(e)
                 if "APIError(code=-2015)" in error_msg:
                     logger.error(f"Erro de permissão para {symbol}")
@@ -226,7 +226,7 @@ class BinanceClient:
                 data = self.client.get_klines(symbol=symbol, interval=interval)
                 if isinstance(data, list) and len(data) > 0:
                     return data
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 error_msg = str(e)
                 if "APIError(code=-2015)" in error_msg:
                     logger.error(f"Erro de permissão para {symbol}")
@@ -255,7 +255,7 @@ class BinanceClient:
         symbol: str,
         interval: str,
         start_str: str,
-        end_str: Optional[str] = None,
+        end_str: Optional[str] = None,  # noqa: UP045
         limit: int = 1000,
     ) -> list:
         """
@@ -282,7 +282,7 @@ class BinanceClient:
                 )
                 if isinstance(data, list) and len(data) > 0:
                     return data
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 error_msg = str(e)
                 if "APIError(code=-2015)" in error_msg:
                     logger.error(f"Erro de permissão para {symbol}")
@@ -329,7 +329,7 @@ class BinanceClient:
                 )
                 if isinstance(data, list) and len(data) > 0:
                     return data
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 error_msg = str(e)
                 if "APIError(code=-2015)" in error_msg:
                     logger.error(f"Erro de permissão para {symbol}")
@@ -352,5 +352,3 @@ class BinanceClient:
 
         logger.error(f"Falha ao gerar k-lines históricas para {symbol}")
         return []
-
-

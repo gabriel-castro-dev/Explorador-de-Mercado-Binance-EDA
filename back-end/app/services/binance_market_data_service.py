@@ -31,7 +31,7 @@ class BinanceMarketService:
         try:
             self.client = BinanceClient()
             logger.info("BinanceMarketService inicializado com sucesso")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error("Falha crítica ao iniciar cliente Binance")
             raise RuntimeError(f"{e}")
 
@@ -283,7 +283,7 @@ class BinanceMarketService:
         self,
         interval: str,
         start_str: str,
-        end_str: Optional[str] = None,
+        end_str: Optional[str] = None,  # noqa: UP045
         limit: int = 1000,
     ) -> pd.DataFrame:
         """
@@ -449,5 +449,3 @@ class BinanceMarketService:
         else:
             logger.error("Falha ao gerar k-lines históricas para os tickers USDT")
             return pd.DataFrame()
-
-

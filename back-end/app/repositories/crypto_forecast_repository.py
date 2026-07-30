@@ -68,7 +68,7 @@ class CryptoForecastRepository:
                 )
                 return response
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(f"Erro ao salvar os tickers de 24h no Supabase: {e}")
                 return None
 
@@ -106,11 +106,11 @@ class CryptoForecastRepository:
                     f"Sucesso! {len(dados_para_salvar)} registros de orderbook salvos/atualizados no Supabase."
                 )
                 return response
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(f"Erro ao salvar os orderbook no Supabase: {e}")
                 return None
 
-    def save_klines(self, interval: str, start_str: Optional[str] = None):
+    def save_klines(self, interval: str, start_str: Optional[str] = None):  # noqa: UP045
         """
         Salva os dados de klines no Supabase para o intervalo especificado.
         Se start_str for informado, usa get_historical_klines (backfill).
@@ -167,9 +167,7 @@ class CryptoForecastRepository:
                         f"Lote {i // batch_size + 1}/{(total - 1) // batch_size + 1}: "
                         f"{len(batch)} registros de klines salvos/atualizados no Supabase."
                     )
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     print(f"Erro ao salvar lote de klines no Supabase: {e}")
             print(f"Total: {total} registros de klines processados.")
             return {"status": "processed", "total": total}
-
-
