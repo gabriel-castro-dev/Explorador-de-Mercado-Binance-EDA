@@ -98,21 +98,28 @@ Usuário
 └─────────────────────────────────────┘    │ volume / quote_volume                │
                                            │ first_id / last_id / count           │
 ┌─────────────────────────────────────┐    └──────────────────────────────────────┘
-│ orderbook_tickers                   │    ┌─────────────────────────────────────┐
-│ (bid/ask — top 20 ativos, 5min)     │    │ features_klines                     │
-├─────────────────────────────────────┤    │ (indicadores calculados — top 20)   │
-│ PK id: bigint                       │    ├─────────────────────────────────────┤
-│ symbol: text FK                     │    │ PK (symbol, timestamp, interval)    │
-│ bid_price / bid_qty: numeric        │    │ symbol: text FK                     │
-│ ask_price / ask_qty: numeric        │    │ timestamp: timestamptz              │
-│ fetched_at: timestamptz             │    │ interval: text (15m/1h/1d)          │
-└─────────────────────────────────────┘    │ sma_20 / sma_50 / sma_200: numeric  │
-                                           │ ema_12 / ema_26: numeric            │
-                                           │ rsi_14: numeric                     │
-                                           │ bb_upper/middle/lower: numeric      │
-                                           │ atr_14: numeric                     │
-                                           │ volume_sma_20: numeric              │
-                                           └─────────────────────────────────────┘
+│ orderbook_tickers                   │    
+│ (bid/ask — top 20 ativos, 5min)     │    ┌─────────────────────────────────────────────────────────┐
+├─────────────────────────────────────┤    │ features_15m / features_1h / features_24h               │
+│ PK id: bigint                       │    │ (indicadores calculados por time-frame — top 20)        │
+│ symbol: text FK                     │    ├─────────────────────────────────────────────────────────┤
+│ bid_price / bid_qty: numeric        │    │ PK (symbol, timestamp)                                  │
+│ ask_price / ask_qty: numeric        │    │ symbol: text FK                                         │
+│ fetched_at: timestamptz             │    │ timestamp: timestamptz                                  │
+└─────────────────────────────────────┘    │ sma_20 / sma_50 / sma_200: float8                       │
+                                           │ ema_12 / ema_26: float8                                 │
+                                           │ rsi_14: float8                                          │
+                                           │ macd: float8 (GENERATED)                                │
+                                           │ macd_signal: float8                                     │
+                                           │ macd_histogram: float8 (GENERATED)                      │
+                                           │ avg_price_deviation_sma20/50/200: float8                │
+                                           │ bb_upper / bb_middle / bb_lower: float8                 │
+                                           │ bb_width: float8 (GENERATED)                            │
+                                           │ atr_14: float8                                          │
+                                           │ bid_ask_spread / order_imbalance: float8                │
+                                           │ price_change_percent / volume_change_24h: float8        │
+                                           │ volume_sma_20: float8                                   │
+                                           └─────────────────────────────────────────────────────────┘
 ```
 
 > Coleta restrita ao **top 20 ativos por volume 24h** (exceto `ticker_24hr_history` que coleta todos para rankear). `features_klines` armazena indicadores calculados a partir dos dados brutos — é a tabela de entrada para os modelos de ML.
