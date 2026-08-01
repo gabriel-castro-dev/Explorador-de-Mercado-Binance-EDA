@@ -1,0 +1,122 @@
+
+retention:
+  klines_15m: "7 days"
+  klines_1h: "30 days"
+  klines_1d: "permanent"           # Não deleta
+  ticker_24hr_history: "30 days"
+  orderbook_tickers: "7 days"
+  
+  features_15m: "180 days"         # 6 meses
+  features_1h: "730 days"          # 2 anos
+  features_24h: "permanent"        # Não deleta
+
+features_15m:
+  # Indicadores de Tendência
+  - name: "sma"
+    params: { period: 20, column: "close" }
+  - name: "sma"
+    params: { period: 50, column: "close" }
+  - name: "sma"
+    params: { period: 200, column: "close" }
+  - name: "ema"
+    params: { period: 12, column: "close" }
+  - name: "ema"
+    params: { period: 26, column: "close" }
+
+  # Osciladores e Volatilidade
+  - name: "rsi"
+    params: { period: 14, column: "close" }
+  - name: "avg_price_deviation"
+    params: { period: 20, column: "close" }
+  - name: "avg_price_deviation"
+    params: { period: 50, column: "close" }
+  - name: "avg_price_deviation"
+    params: { period: 200, column: "close" }
+  - name: "bollinger"
+    params: { period: 20, num_std: 2, column: "close" }
+  - name: "atr"
+    params: { period: 14 }
+
+  # Volume e Mudanças Relativas
+  - name: "change_percent"
+    params: { column: "close", period: 1 }     # Variação preço vela a vela (15m)
+  - name: "change_percent"
+    params: { column: "volume", period: 96 }   # Variação volume 24h (96 * 15m)
+  - name: "sma"
+    params: { period: 20, column: "volume" }   # volume_sma_20
+
+  # Liquidez (Orderbook / Tickers)
+  - name: "bid_ask_spread"
+    params: {}
+  - name: "order_imbalance"
+    params: {}
+
+
+features_1h:
+  - name: "sma"
+    params: { period: 20, column: "close" }
+  - name: "sma"
+    params: { period: 50, column: "close" }
+  - name: "sma"
+    params: { period: 200, column: "close" }
+  - name: "ema"
+    params: { period: 12, column: "close" }
+  - name: "ema"
+    params: { period: 26, column: "close" }
+  - name: "rsi"
+    params: { period: 14, column: "close" }
+  - name: "avg_price_deviation"
+    params: { period: 20, column: "close" }
+  - name: "avg_price_deviation"
+    params: { period: 50, column: "close" }
+  - name: "avg_price_deviation"
+    params: { period: 200, column: "close" }
+  - name: "bollinger"
+    params: { period: 20, num_std: 2, column: "close" }
+  - name: "atr"
+    params: { period: 14 }
+  - name: "change_percent"
+    params: { column: "close", period: 1 }     # Variação de preço em 1h
+  - name: "change_percent"
+    params: { column: "volume", period: 24 }   # Variação de volume em 24h (24 * 1h)
+  - name: "sma"
+    params: { period: 20, column: "volume" }
+  - name: "bid_ask_spread"
+    params: {}
+  - name: "order_imbalance"
+    params: {}
+
+
+features_24h:
+  - name: "sma"
+    params: { period: 20, column: "close" }
+  - name: "sma"
+    params: { period: 50, column: "close" }
+  - name: "sma"
+    params: { period: 200, column: "close" }
+  - name: "ema"
+    params: { period: 12, column: "close" }
+  - name: "ema"
+    params: { period: 26, column: "close" }
+  - name: "rsi"
+    params: { period: 14, column: "close" }
+  - name: "avg_price_deviation"
+    params: { period: 20, column: "close" }
+  - name: "avg_price_deviation"
+    params: { period: 50, column: "close" }
+  - name: "avg_price_deviation"
+    params: { period: 200, column: "close" }
+  - name: "bollinger"
+    params: { period: 20, num_std: 2, column: "close" }
+  - name: "atr"
+    params: { period: 14 }
+  - name: "change_percent"
+    params: { column: "close", period: 1 }     # Variação diária
+  - name: "change_percent"
+    params: { column: "volume", period: 1 }    # Variação de volume diária
+  - name: "sma"
+    params: { period: 20, column: "volume" }
+  - name: "bid_ask_spread"
+    params: {}
+  - name: "order_imbalance"
+    params: {}

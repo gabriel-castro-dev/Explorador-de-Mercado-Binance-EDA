@@ -72,13 +72,18 @@ class TechnicalIndicatorsTransform:
         return (df["bid_qty"] - df["ask_qty"]) / total_qty.replace(0, pd.NA)
 
     @staticmethod
-    def calculate_price_change_percent(df: pd.DataFrame, period: int = 1) -> pd.Series:
-        """Calculate price change percentage per symbol."""
-        return df.groupby("symbol")["close"].pct_change(periods=period) * 100
-
-    @staticmethod
-    def calculate_volume_change_percent(
-        df: pd.DataFrame, period: int = 24
+    def calculate_change_percent(
+        df: pd.DataFrame, column: str = "close", period: int = 1
     ) -> pd.Series:
-        """Calculate volume change percentage per symbol."""
-        return df.groupby("symbol")["volume"].pct_change(periods=period) * 100
+        """
+        Calcula a variação percentual de qualquer coluna agrupada por símbolo.
+
+        Args:
+            df (pd.DataFrame): DataFrame contendo os dados e a coluna 'symbol'.
+            column (str): Nome da coluna para calcular a variação ('close', 'volume', etc.).
+            period (int): Janela de períodos para trás (ex: 1 para vela a vela, 24 para 24h em velas de 1h).
+
+        Returns:
+            pd.Series: Série com a variação percentual calculada.
+        """
+        return df.groupby("symbol")[column].pct_change(periods=period) * 100
