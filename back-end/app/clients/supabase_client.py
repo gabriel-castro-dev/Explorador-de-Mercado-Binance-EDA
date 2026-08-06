@@ -3,10 +3,9 @@ from supabase import Client, create_client
 
 
 def get_supabase_client() -> Client:
-    """
-    Inicializa e retorna a conexão bruta com o Supabase.
+    """Initialize and return the raw Supabase connection.
 
     Returns:
-        Client: Uma instância do cliente do Supabase.
+        A Supabase client instance bound to the configured project.
     """
     return create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)

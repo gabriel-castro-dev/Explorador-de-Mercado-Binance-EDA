@@ -9,24 +9,25 @@ logger = logging.getLogger(__name__)
 
 
 class BinanceClient:
-    """
-    Cliente responsável por requisições de dados de mercado na API Binance.
+    """Client for the Binance REST market data API.
 
-    Encapsula todas as chamadas HTTP à Binance REST API, incluindo:
-    - Retry logic com validação de conectividade
+    Encapsulates all HTTP calls to the Binance REST API, including
+    retry logic with connectivity validation. The number of attempts
+    and the delay between them are driven by the ``MAX_RETRIES`` and
+    ``RETRY_DELAY`` settings.
 
     Attributes:
-        client: Cliente Binance já autenticado
-        api_key: Chave de API Binance
-        api_secret: Secret da API Binance
+        client: Authenticated Binance SDK client.
+        api_key: Binance API key.
+        api_secret: Binance API secret.
+        test_net: Whether the testnet environment is enabled.
     """
 
     def __init__(self) -> None:
-        """
-        Inicializa o serviço de dados de mercado.
+        """Initialize the Binance client and validate the connection.
 
         Raises:
-            RuntimeError: Se não conseguir conectar à API Binance
+            RuntimeError: If the connection to the Binance API cannot be established.
         """
         try:
             self.api_key: str = settings.BINANCE_API_KEY
@@ -58,11 +59,10 @@ class BinanceClient:
             )
 
     def ping(self) -> bool:
-        """
-        Verifica conectividade com a API Binance.
+        """Check connectivity with the Binance API.
 
         Returns:
-            Bool indicando status da conexão
+            True if the API is reachable, False otherwise.
         """
         try:
             resultado = self.client.ping()
@@ -78,11 +78,10 @@ class BinanceClient:
             return False
 
     def server_time(self) -> dict | None:
-        """
-        Obtém o horário atual do servidor Binance.
+        """Fetch the current Binance server time.
 
         Returns:
-            Dict com timestamp ou None se falhar
+            Dict containing the server timestamp, or None on failure.
         """
         try:
             data = self.client.get_server_time()
@@ -92,11 +91,10 @@ class BinanceClient:
             return None
 
     def system_status(self) -> dict | None:
-        """
-        Obtém status do sistema Binance.
+        """Fetch the current Binance system status.
 
         Returns:
-            Dict com status ou None se falhar
+            Dict containing the system status, or None on failure.
         """
         try:
             data = self.client.get_system_status()
@@ -106,11 +104,10 @@ class BinanceClient:
             return None
 
     def get_tickers(self) -> list:
-        """
-        Obtém lista de todos os tickers do mercado, ordenados por preço.
+        """Fetch all market tickers, ordered by price.
 
         Returns:
-            Lista com tickers do mercado ou lista vazia se falhar
+            List of ticker dicts, or an empty list after exhausting all retries.
         """
         for attempt in range(self.MAX_RETRIES):
             try:
@@ -135,11 +132,17 @@ class BinanceClient:
         return []
 
     def get_ticker_24hr(self, symbol: str) -> dict:
-        """
-        Obtém dados de 24h do par USDT.
+        """Fetch 24-hour ticker data for a trading pair.
+
+        Args:
+            symbol: Trading pair (e.g., 'BTCUSDT').
 
         Returns:
-            Dicionário com dados 24h ou dicionário vazio se falhar
+            Dict with 24-hour ticker data, or an empty dict after exhausting all retries.
+
+        Raises:
+            PermissionError: If the API key lacks permission for this request.
+            KeyError: If the provided symbol is invalid.
         """
         for attempt in range(self.MAX_RETRIES):
             try:
@@ -172,14 +175,19 @@ class BinanceClient:
         return {}
 
     def get_orderbook_tickers(self, symbol: str | list) -> list | dict:
-        """
-        Obtém informações de order book de um par.
+        """Fetch order book ticker information for one or more pairs.
 
         Args:
-            symbol: Par de moedas (ex: 'BTCUSDT') ou lista de pares (ex: ['BTCUSDT', 'ETHUSDT'])
+            symbol: Trading pair (e.g., 'BTCUSDT') or a list of pairs
+                (e.g., ['BTCUSDT', 'ETHUSDT']).
 
         Returns:
-            Lista ou dicionário com dados de order book ou estrutura vazia se falhar
+            List or dict with order book data, or an empty list after
+            exhausting all retries.
+
+        Raises:
+            PermissionError: If the API key lacks permission for this request.
+            KeyError: If the provided symbol is invalid.
         """
         for attempt in range(self.MAX_RETRIES):
             try:
@@ -211,15 +219,18 @@ class BinanceClient:
         return []
 
     def get_klines(self, symbol: str, interval: str) -> list:
-        """
-        Obtém K-lines (velas) em tempo real de um par.
+        """Fetch real-time kline (candlestick) data for a trading pair.
 
         Args:
-            symbol: Par de moedas (ex: 'BTCUSDT')
-            interval: Intervalo (ex: '1m', '1h', '1d')
+            symbol: Trading pair (e.g., 'BTCUSDT').
+            interval: Candlestick interval (e.g., '1m', '1h', '1d').
 
         Returns:
-            Lista com K-lines ou lista vazia se falhar
+            List of kline rows, or an empty list after exhausting all retries.
+
+        Raises:
+            PermissionError: If the API key lacks permission for this request.
+            KeyError: If an invalid parameter is provided.
         """
         for attempt in range(self.MAX_RETRIES):
             try:
@@ -258,18 +269,21 @@ class BinanceClient:
         end_str: Optional[str] = None,  # noqa: UP045
         limit: int = 1000,
     ) -> list:
-        """
-        Obtém K-lines históricas de um período específico.
+        """Fetch historical klines for a specific period.
 
         Args:
-            symbol: Par de moedas (ex: 'BTCUSDT')
-            interval: Intervalo (ex: '1h', '1d')
-            start_str: Data inicial (ex: '10 days ago UTC')
-            end_str: Data final (opcional)
-            limit: Número máximo de registros
+            symbol: Trading pair (e.g., 'BTCUSDT').
+            interval: Candlestick interval (e.g., '1h', '1d').
+            start_str: Start date (e.g., '10 days ago UTC').
+            end_str: End date (optional).
+            limit: Maximum number of records to fetch.
 
         Returns:
-            Lista com k-lines históricas ou lista vazia se falhar
+            List of kline rows, or an empty list after exhausting all retries.
+
+        Raises:
+            PermissionError: If the API key lacks permission for this request.
+            KeyError: If an invalid parameter is provided.
         """
         for attempt in range(self.MAX_RETRIES):
             try:
@@ -309,16 +323,21 @@ class BinanceClient:
     def get_historical_klines_generator(
         self, symbol: str, interval: str, timestamp: str
     ) -> list:
-        """
-        Obtém K-lines históricas usando generator (eficiente para grandes volumes).
+        """Fetch historical klines efficiently via the generator API.
+
+        Efficient for large volumes of data.
 
         Args:
-            symbol: Par de moedas (ex: 'BTCUSDT')
-            interval: Intervalo (ex: '1h', '1d')
-            timestamp: Data inicial (ex: '100 days ago UTC')
+            symbol: Trading pair (e.g., 'BTCUSDT').
+            interval: Candlestick interval (e.g., '1h', '1d').
+            timestamp: Start date (e.g., '100 days ago UTC').
 
         Returns:
-            Lista com k-lines geradas ou lista vazia se falhar
+            List of kline rows, or an empty list after exhausting all retries.
+
+        Raises:
+            PermissionError: If the API key lacks permission for this request.
+            KeyError: If an invalid parameter is provided.
         """
         for attempt in range(self.MAX_RETRIES):
             try:

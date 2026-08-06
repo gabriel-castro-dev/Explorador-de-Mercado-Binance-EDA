@@ -17,6 +17,7 @@ on:
           - five-minutes
           - hourly
           - daily
+          - feature-engineering
 
 jobs:
   five-minutes-job:
@@ -105,3 +106,27 @@ jobs:
             -e BINANCE_API_SECRET="${{ secrets.BINANCE_API_SECRET }}" \
             -e BINANCE_PROXY="${{ secrets.BINANCE_PROXY }}" \
             crypto-jobs uv run python jobs.py daily
+
+  feature-engineering-job:
+    name: Construir Features e Aplicar Retenção
+    needs: daily-job
+    if: >-
+      always() && (
+        github.event_name == 'workflow_dispatch' &&
+        github.event.inputs.job_to_run == 'feature-engineering' ||
+        github.event_name == 'schedule' &&
+        github.event.schedule == '5 0 * * *' &&
+        needs.daily-job.result == 'success'
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build imagem feature engineering
+        working-directory: back-end
+        run: docker build -t crypto-feature-engineering -f Dockerfile.feature-engineering .
+      - name: Construir features e limpar dados expirados
+        run: |
+          docker run --rm \
+            -e SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
+            -e SUPABASE_KEY="${{ secrets.SUPABASE_KEY }}" \
+            crypto-feature-engineering
