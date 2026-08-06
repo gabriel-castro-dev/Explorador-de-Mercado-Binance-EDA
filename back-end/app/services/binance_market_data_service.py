@@ -8,25 +8,24 @@ logger = logging.getLogger(__name__)
 
 
 class BinanceMarketService:
-    """
-    Serviço responsável por requisições e transformação de dados de mercado na API Binance.
+    """Service for requesting and transforming market data from the Binance API.
 
-    Encapsula todas as transformações dos dados provenientes da API Binance, incluindo:
-    - Retry logic com validação de conectividade
-    - Transformação de dados brutos em DataFrames estruturados
-    - Type casting apropriado (int, float, datetime)
-    - Validação de dados e tratamento de erros específicos
+    Encapsulates all transformations of the data returned by the Binance API,
+    including:
+    - Retry logic with connectivity validation
+    - Transformation of raw data into structured DataFrames
+    - Appropriate type casting (int, float, datetime)
+    - Data validation and specific error handling
 
     Attributes:
-        client: Classe BinanceClient já autenticada para requisições de dados de mercado
+        client: Authenticated BinanceClient used for market data requests.
     """
 
     def __init__(self) -> None:
-        """
-        Inicializa o serviço de dados de mercado.
+        """Initialize the market data service.
 
         Raises:
-            RuntimeError: Se não conseguir conectar à API Binance
+            RuntimeError: If the connection to the Binance API cannot be established.
         """
         try:
             self.client = BinanceClient()
@@ -36,11 +35,10 @@ class BinanceMarketService:
             raise RuntimeError(f"{e}")
 
     def ping(self) -> str:
-        """
-        Verifica conectividade com a API Binance.
+        """Check connectivity with the Binance API.
 
         Returns:
-            Mensagem indicando status da conexão
+            Message describing the connection status.
         """
         resultado = self.client.ping()
         if resultado:
@@ -49,11 +47,10 @@ class BinanceMarketService:
         return "Error pinging Binance API"
 
     def server_time(self) -> dict:
-        """
-        Obtém o horário atual do servidor Binance.
+        """Fetch the current Binance server time.
 
         Returns:
-            Dict com timestamp ou mensagem de erro
+            Dict with the server timestamp, or an error dict on failure.
         """
         result = self.client.server_time()
 
@@ -66,11 +63,10 @@ class BinanceMarketService:
         return result
 
     def system_status(self) -> dict:
-        """
-        Obtém status do sistema Binance.
+        """Fetch the current Binance system status.
 
         Returns:
-            Dict com status ou mensagem de erro
+            Dict with the system status, or an error dict on failure.
         """
         result = self.client.system_status()
 
@@ -83,11 +79,11 @@ class BinanceMarketService:
         return result
 
     def get_tickers(self) -> pd.DataFrame:
-        """
-        Obtém lista de todos os tickers com pares USDT, ordenados por preço.
+        """Fetch all USDT trading pairs sorted by price.
 
         Returns:
-            DataFrame com tickers USDT ordenados ou DataFrame vazio se falhar
+            DataFrame with USDT tickers sorted by price, or an empty
+            DataFrame on failure.
         """
         data = self.client.get_tickers()
         if data:
@@ -109,11 +105,10 @@ class BinanceMarketService:
             return pd.DataFrame()
 
     def get_ticker_24hr(self) -> pd.DataFrame:
-        """
-        Obtém dados de 24h dos pares USDT.
+        """Fetch 24-hour data for the USDT trading pairs.
 
         Returns:
-            DataFrame com dados 24h ou DataFrame vazio se falhar
+            DataFrame with 24-hour data, or an empty DataFrame on failure.
         """
         df_tickers = self.get_tickers()
         symbols = df_tickers["symbol"].tolist()
@@ -159,11 +154,10 @@ class BinanceMarketService:
             return pd.DataFrame()
 
     def get_top_20_tickers(self) -> pd.DataFrame:
-        """
-        Obtém os 20 principais tickers USDT com base no volume.
+        """Fetch the top 20 USDT tickers ranked by quote volume.
 
         Returns:
-            DataFrame com os 20 principais tickers ou DataFrame vazio se falhar
+            DataFrame with the top 20 tickers, or an empty DataFrame on failure.
         """
         df_tickers = self.get_ticker_24hr()
         if not df_tickers.empty:
@@ -176,11 +170,10 @@ class BinanceMarketService:
             return pd.DataFrame(columns=["symbol"])
 
     def get_orderbook_tickers(self) -> pd.DataFrame:
-        """
-        Obtém informações de order book dos top 20 pares USDT.
+        """Fetch order book information for the top 20 USDT pairs.
 
         Returns:
-            DataFrame com dados de order book ou DataFrame vazio se falhar
+            DataFrame with order book data, or an empty DataFrame on failure.
         """
 
         df_tickers = self.get_top_20_tickers()
@@ -211,14 +204,13 @@ class BinanceMarketService:
             return pd.DataFrame()
 
     def get_klines(self, interval: str) -> pd.DataFrame:
-        """
-        Obtém K-lines (velas) em tempo real de todos os top 20 pares USDT.
+        """Fetch real-time klines for all top 20 USDT pairs.
 
         Args:
-            interval: Intervalo (ex: '1m', '1h', '1d')
+            interval: Candlestick interval (e.g., '1m', '1h', '1d').
 
         Returns:
-            DataFrame com OHLCV ou DataFrame vazio se falhar
+            DataFrame with OHLCV data, or an empty DataFrame on failure.
         """
         df_tickers = self.get_top_20_tickers()
         symbols = df_tickers["symbol"].tolist()
@@ -286,17 +278,16 @@ class BinanceMarketService:
         end_str: Optional[str] = None,  # noqa: UP045
         limit: int = 1000,
     ) -> pd.DataFrame:
-        """
-        Obtém K-lines históricas de um período específico para todos os top 20 pares USDT.
+        """Fetch historical klines for a period across all top 20 USDT pairs.
 
         Args:
-            interval: Intervalo (ex: '1h', '1d')
-            start_str: Data inicial (ex: '10 days ago UTC')
-            end_str: Data final (opcional)
-            limit: Número máximo de registros
+            interval: Candlestick interval (e.g., '1h', '1d').
+            start_str: Start date (e.g., '10 days ago UTC').
+            end_str: End date (optional).
+            limit: Maximum number of records.
 
         Returns:
-            DataFrame com k-lines históricas ou DataFrame vazio se falhar
+            DataFrame with historical klines, or an empty DataFrame on failure.
         """
         df_tickers = self.get_top_20_tickers()
         symbols = df_tickers["symbol"].tolist()
@@ -370,16 +361,16 @@ class BinanceMarketService:
     def get_historical_klines_generator(
         self, interval: str, timestamp: str
     ) -> pd.DataFrame:
-        """
-        Obtém K-lines históricas usando generator (eficiente para grandes volumes)
-        para os top 20 pares USDT.
+        """Fetch historical klines via the generator API for the top 20 USDT pairs.
+
+        Efficient for large volumes of data.
 
         Args:
-            interval: Intervalo (ex: '1h', '1d')
-            timestamp: Data inicial (ex: '100 days ago UTC')
+            interval: Candlestick interval (e.g., '1h', '1d').
+            timestamp: Start date (e.g., '100 days ago UTC').
 
         Returns:
-            DataFrame com k-lines geradas ou DataFrame vazio se falhar
+            DataFrame with generated klines, or an empty DataFrame on failure.
         """
         df_tickers = self.get_top_20_tickers()
         symbols = df_tickers["symbol"].tolist()

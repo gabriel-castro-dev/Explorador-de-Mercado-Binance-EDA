@@ -10,6 +10,7 @@ dependencies = [
     "pydantic-settings>=2.14.2",
     "python-binance>=1.0.37",
     "python-dotenv>=1.2.2",
+    "pyyaml>=6.0.3",
     "supabase>=2.31.0",
     "ta-lib>=0.7.1",
 ]

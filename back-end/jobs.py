@@ -5,6 +5,13 @@ from app.repositories.tickers_repository import TickersRepository
 
 
 def main():
+    """Run the scheduled ingestion jobs based on the CLI argument.
+
+    Supported job types:
+    - 'five-minutes': persist order book tickers.
+    - 'hourly': persist 24-hour ticker summaries.
+    - 'daily': persist klines for the 15m, 1h, and 1d timeframes.
+    """
     repo_tickers = TickersRepository()
     repo_klines = KlinesRepository()
     job_type = sys.argv[1] if len(sys.argv) > 1 else "hourly"
