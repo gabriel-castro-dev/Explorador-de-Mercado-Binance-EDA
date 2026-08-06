@@ -4,14 +4,42 @@ from app.services.binance_market_data_service import BinanceMarketService
 
 
 class TickersRepository(BaseRepository):
+    """Data access layer for liquidity and 24-hour summary tables."""
+
     def __init__(self):
+        """Initialize the repository with a Binance market data service."""
+        super().__init__()
         self.binance_service = BinanceMarketService()
 
+    def get_latest_orderbook_tickers(self) -> pd.DataFrame:
+        """Read retained order-book snapshots in chronological order."""
+        response = (
+            self.supabase.table("orderbook_tickers")
+            .select("*")
+            .order("symbol")
+            .order("fetched_at")
+            .execute()
+        )
+        return pd.DataFrame(response.data)
+
+    def get_latest_ticker_24hr(self) -> pd.DataFrame:
+        """Read retained 24-hour ticker snapshots in chronological order."""
+        response = (
+            self.supabase.table("ticker_24hr_history")
+            .select("*")
+            .order("symbol")
+            .order("open_time")
+            .execute()
+        )
+        return pd.DataFrame(response.data)
     def save_ticker_24hr(self):
-        """
-        Salva os dados de ticker de 24 horas no Supabase.
+        """Save 24-hour ticker data to Supabase.
+
+        Fetches the 24-hour summaries from Binance, normalizes the column
+        names and timestamps, and upserts them keyed on (symbol, open_time).
+
         Returns:
-            dict: Resposta da operação de salvamento no Supabase.
+            Dict with the Supabase upsert response, or None on failure.
         """
         df = self.binance_service.get_ticker_24hr()
         if df.empty:
@@ -70,10 +98,14 @@ class TickersRepository(BaseRepository):
                 return None
 
     def save_orderbook_tickers(self):
-        """
-        Salva os dados de orderbook tickers no Supabase.
+        """Save order book ticker data to Supabase.
+
+        Fetches the order book snapshot for the top 20 pairs, normalizes the
+        column names, stamps the fetch time, and upserts them keyed on
+        (symbol, fetched_at).
+
         Returns:
-            dict: Resposta da operação de salvamento no Supabase.
+            Dict with the Supabase upsert response, or None on failure.
         """
         df = self.binance_service.get_orderbook_tickers()
         if df.empty:
