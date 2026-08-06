@@ -1,22 +1,51 @@
 from typing import Optional
 
+import pandas as pd
+
 from app.repositories.base import BaseRepository
 from app.services.binance_market_data_service import BinanceMarketService
 
 
 class KlinesRepository(BaseRepository):
+    """Data access layer for candlestick (klines) tables."""
+
     def __init__(self):
+        """Initialize the repository with a Supabase client and Binance service."""
+        super().__init__()
         self.binance_service = BinanceMarketService()
 
-    def save_klines(self, interval: str, start_str: Optional[str] = None):  # noqa: UP045
-        """
-        Salva os dados de klines no Supabase para o intervalo especificado.
-        Se start_str for informado, usa get_historical_klines (backfill).
+    def get_latest_klines(self, timeframe: str) -> pd.DataFrame:
+        """Read persisted candles ordered for rolling indicator calculations.
+
         Args:
-            interval: Intervalo (ex: '15m', '1h', '1d')
-            start_str: Data inicial para backfill (ex: '30 days ago UTC')
+            timeframe: Klines timeframe (e.g., '15m', '1h', '1d').
+
         Returns:
-            dict: Resposta da operação de salvamento no Supabase.
+            DataFrame with candles ordered by symbol and open time.
+        """
+        response = (
+            self.supabase.table(f"klines_{timeframe}")
+            .select("*")
+            .order("symbol")
+            .order("open_time")
+            .execute()
+        )
+        return pd.DataFrame(response.data)
+
+    def save_klines(self, interval: str, start_str: Optional[str] = None):  # noqa: UP045
+        """Save klines data to the Supabase table for the given interval.
+
+        If ``start_str`` is provided, historical klines (backfill) are used;
+        otherwise real-time klines are fetched. Rows are upserted in batches
+        keyed on (symbol, open_time).
+
+        Args:
+            interval: Candlestick interval (e.g., '15m', '1h', '1d').
+            start_str: Start date for backfill (e.g., '30 days ago UTC').
+
+        Returns:
+            Dict with processing status and total rows, or None if nothing
+            was saved.
         """
         if start_str:
             df = self.binance_service.get_historical_klines(interval, start_str)
