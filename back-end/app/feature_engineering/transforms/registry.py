@@ -1,35 +1,61 @@
-from typing import Callable, Dict
+from collections.abc import Callable
 
-from transforms.technical_indicators import TechnicalIndicatorsTransform
+from app.feature_engineering.transforms.technical_indicators import (
+    TechnicalIndicatorsTransform,
+)
 
 
 class TransformRegistry:
-    def __init__(self):
-        self._transforms: Dict[str, Callable] = {
+    """Central catalog to resolve transformation functions by name.
+
+    Maps string identifiers (e.g., 'sma') to the corresponding callable
+    functions from TechnicalIndicatorsTransform.
+
+    Attributes:
+        _transforms: Mapping of transform names to callable functions.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the registry with the default transformation catalog."""
+        self._transforms: dict[str, Callable] = {
             "sma": TechnicalIndicatorsTransform.calculate_sma,
             "ema": TechnicalIndicatorsTransform.calculate_ema,
             "rsi": TechnicalIndicatorsTransform.calculate_rsi,
             "bollinger": TechnicalIndicatorsTransform.calculate_bollinger_bands,
             "avg_price_deviation": TechnicalIndicatorsTransform.calculate_avg_price_deviation,
             "atr": TechnicalIndicatorsTransform.calculate_atr,
-            "price_change_percent": TechnicalIndicatorsTransform.calculate_change_percent,
-            "volume_change_percent": TechnicalIndicatorsTransform.calculate_change_percent,
+            "change_percent": TechnicalIndicatorsTransform.calculate_change_percent,
+            "bid_ask_spread": TechnicalIndicatorsTransform.calculate_bid_ask_spread,
+            "order_imbalance": TechnicalIndicatorsTransform.calculate_order_imbalance,
         }
 
     def get(self, name: str) -> Callable:
-        """Retrive a transformation function by name."""
+        """Retrieve a transformation function by name.
 
-        transform_fn = self._transforms.get(name.lower())
-        if not transform_fn:
+        Args:
+            name: Registered transform name (case-insensitive).
+
+        Returns:
+            The callable transformation function.
+
+        Raises:
+            KeyError: If no transform is registered under the given name.
+        """
+        transform_function = self._transforms.get(name.lower())
+        if transform_function is None:
             raise KeyError(
                 f"Transformação '{name}' não encontrada. "
                 f"Opções disponíveis: {list(self._transforms.keys())}"
             )
-        return transform_fn
+        return transform_function
 
-    def register(self, name: str, func: Callable):
-        """Register a new transformation function."""
+    def register(self, name: str, func: Callable) -> None:
+        """Register a new transformation function.
 
+        Args:
+            name: Name under which the function will be stored (case-insensitive).
+            func: The callable transformation function.
+        """
         self._transforms[name.lower()] = func
 
 
