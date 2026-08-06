@@ -68,7 +68,8 @@ class FeaturesRepository(BaseRepository):
         Returns:
             List of dicts ready for a Supabase upsert.
         """
-        normalized = df.astype(object).where(pd.notna(df), None)
+        normalized = df.replace([float("inf"), float("-inf")], None)
+        normalized = normalized.astype(object).where(pd.notna(normalized), None)
         records: list[dict[str, Any]] = normalized.to_dict(orient="records")
         for record in records:
             for column, value in record.items():
