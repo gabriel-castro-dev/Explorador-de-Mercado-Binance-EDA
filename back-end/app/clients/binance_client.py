@@ -1,5 +1,6 @@
 import logging
 import time
+from collections.abc import Iterator
 from typing import Optional
 
 from binance.client import Client
@@ -322,7 +323,7 @@ class BinanceClient:
 
     def get_historical_klines_generator(
         self, symbol: str, interval: str, timestamp: str
-    ) -> list:
+    ) -> Iterator[list]:
         """Fetch historical klines efficiently via the generator API.
 
         Efficient for large volumes of data.
@@ -341,13 +342,9 @@ class BinanceClient:
         """
         for attempt in range(self.MAX_RETRIES):
             try:
-                data = list(
-                    self.client.get_historical_klines_generator(
-                        symbol=symbol, interval=interval, start_str=timestamp
-                    )
+                return self.client.get_historical_klines_generator(
+                    symbol=symbol, interval=interval, start_str=timestamp
                 )
-                if isinstance(data, list) and len(data) > 0:
-                    return data
             except Exception as e:  # noqa: BLE001
                 error_msg = str(e)
                 if "APIError(code=-2015)" in error_msg:

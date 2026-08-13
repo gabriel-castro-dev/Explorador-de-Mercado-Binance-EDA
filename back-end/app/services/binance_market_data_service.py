@@ -327,12 +327,8 @@ class BinanceMarketService:
             ]
             df = pd.DataFrame(data=all_data, columns=columns)
             df = df.drop(columns=["Ignore"])
-            df["Open_Time"] = pd.to_datetime(df["Open_Time"], unit="ms").dt.strftime(
-                "%d/%m/%Y %H:%M:%S"
-            )
-            df["Close_Time"] = pd.to_datetime(df["Close_Time"], unit="ms").dt.strftime(
-                "%d/%m/%Y %H:%M:%S"
-            )
+            df["Open_Time"] = pd.to_datetime(df["Open_Time"], unit="ms")
+            df["Close_Time"] = pd.to_datetime(df["Close_Time"], unit="ms")
             df["Number_of_Trades"] = df["Number_of_Trades"].astype(int)
 
             numeric_cols = [
@@ -410,12 +406,8 @@ class BinanceMarketService:
             ]
             df = pd.DataFrame(data=all_data, columns=columns)
             df = df.drop(columns=["Ignore"])
-            df["Open_Time"] = pd.to_datetime(df["Open_Time"], unit="ms").dt.strftime(
-                "%d/%m/%Y %H:%M:%S"
-            )
-            df["Close_Time"] = pd.to_datetime(df["Close_Time"], unit="ms").dt.strftime(
-                "%d/%m/%Y %H:%M:%S"
-            )
+            df["Open_Time"] = pd.to_datetime(df["Open_Time"], unit="ms")
+            df["Close_Time"] = pd.to_datetime(df["Close_Time"], unit="ms")
             df["Number_of_Trades"] = df["Number_of_Trades"].astype(int)
 
             numeric_cols = [
@@ -440,3 +432,32 @@ class BinanceMarketService:
         else:
             logger.error("Falha ao gerar k-lines históricas para os tickers USDT")
             return pd.DataFrame()
+    def iter_historical_klines(self, interval: str, timestamp: str, batch_size: int = 500):
+        """Yield normalized historical candles per symbol and batch."""
+        symbols = self.get_top_20_tickers()["symbol"].tolist()
+        for symbol in symbols:
+            rows: list[list] = []
+            try:
+                for kline in self.client.get_historical_klines_generator(
+                    symbol=symbol, interval=interval, timestamp=timestamp
+                ):
+                    rows.append(kline + [symbol])
+                    if len(rows) == batch_size:
+                        yield symbol, self._historical_rows_to_frame(rows)
+                        rows = []
+                if rows:
+                    yield symbol, self._historical_rows_to_frame(rows)
+            except Exception:
+                logger.exception("Falha ao obter histórico para %s (%s).", symbol, interval)
+                raise
+
+    @staticmethod
+    def _historical_rows_to_frame(rows: list[list]) -> pd.DataFrame:
+        columns = ["Open_Time", "Open", "High", "Low", "Close", "Volume", "Close_Time", "Quote_Asset_Volume", "Number_of_Trades", "Taker_Buy_Base_Asset_Volume", "Taker_Buy_Quote_Asset_Volume", "Ignore", "symbol"]
+        df = pd.DataFrame(rows, columns=columns).drop(columns=["Ignore"])
+        df["Open_Time"] = pd.to_datetime(df["Open_Time"], unit="ms", utc=True)
+        df["Close_Time"] = pd.to_datetime(df["Close_Time"], unit="ms", utc=True)
+        numeric_columns = ["Open", "High", "Low", "Close", "Volume", "Quote_Asset_Volume", "Taker_Buy_Base_Asset_Volume", "Taker_Buy_Quote_Asset_Volume"]
+        df[numeric_columns] = df[numeric_columns].apply(pd.to_numeric, errors="coerce")
+        df["Number_of_Trades"] = pd.to_numeric(df["Number_of_Trades"], errors="coerce").astype("Int64")
+        return df.dropna(subset=["Open_Time", "Open", "High", "Low", "Close", "Volume"])
