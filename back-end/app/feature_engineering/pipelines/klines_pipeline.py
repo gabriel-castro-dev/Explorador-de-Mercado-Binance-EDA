@@ -75,6 +75,10 @@ class KlinesPipeline(BasePipeline):
                 logger.warning("Nenhum candle encontrado para timeframe %s.", timeframe)
                 return
             processed = self.apply_transforms(candles, feature_group)
+            macd_line = processed["ema_12"] - processed["ema_26"]
+            processed["macd_signal"] = macd_line.groupby(
+                processed["symbol"], sort=False
+            ).transform(lambda values: values.ewm(span=9, adjust=False).mean())
             if "open_time" not in processed.columns:
                 raise ValueError("Candles devem conter a coluna 'open_time'.")
             processed = processed.rename(columns={"open_time": "timestamp"})
