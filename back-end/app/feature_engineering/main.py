@@ -43,7 +43,7 @@ def run() -> None:
 
         retention = load_config().get("retention", {})
         if not isinstance(retention, dict):
-            raise ValueError("Configuração 'retention' deve ser um mapeamento.")
+            raise TypeError("Configuração 'retention' deve ser um mapeamento.")
         RetentionCleaner(RetentionRepository()).run_retention_policy(retention)
     except Exception:
         logger.exception("Execução de feature engineering falhou.")
