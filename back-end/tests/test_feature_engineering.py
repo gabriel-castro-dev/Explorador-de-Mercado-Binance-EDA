@@ -186,6 +186,45 @@ class HistoricalChargeTests(unittest.TestCase):
         self.assertEqual(pipeline_class.return_value.run.call_args_list[2].args, ("24h",))
 
 
+class TrackedSymbolsTests(unittest.TestCase):
+    def test_versioned_config_is_loaded_normalized(self):
+        from app.core.symbols import load_tracked_symbols
+
+        load_tracked_symbols.cache_clear()
+        symbols = load_tracked_symbols()
+        self.assertEqual(len(symbols), 20)
+        self.assertEqual(len(set(symbols)), 20)
+        self.assertEqual(symbols[0], "BTCUSDT")
+        self.assertTrue(all(s == s.upper() and s.endswith("USDT") for s in symbols))
+
+    def test_service_prefers_fixed_list_over_dynamic_top20(self):
+        service = BinanceMarketService(client=MagicMock())
+        with (
+            patch(
+                "app.services.binance_market_data_service.load_tracked_symbols",
+                return_value=("BTCUSDT", "ETHUSDT"),
+            ),
+            patch.object(service, "get_top_20_tickers") as top20,
+        ):
+            self.assertEqual(service.get_tracked_symbols(), ["BTCUSDT", "ETHUSDT"])
+        top20.assert_not_called()
+
+    def test_service_falls_back_to_dynamic_top20_without_config(self):
+        service = BinanceMarketService(client=MagicMock())
+        with (
+            patch(
+                "app.services.binance_market_data_service.load_tracked_symbols",
+                return_value=(),
+            ),
+            patch.object(
+                service,
+                "get_top_20_tickers",
+                return_value=pd.DataFrame({"symbol": ["XRPUSDT"]}),
+            ),
+        ):
+            self.assertEqual(service.get_tracked_symbols(), ["XRPUSDT"])
+
+
 class HistoricalServiceTests(unittest.TestCase):
     def test_historical_batch_keeps_datetime_values(self):
         row = [
@@ -508,11 +547,7 @@ class GetKlinesNormalizationTests(unittest.TestCase):
         client = MagicMock()
         client.get_klines.return_value = [self._RAW_KLINE]
         service = BinanceMarketService(client=client)
-        with patch.object(
-            service,
-            "get_top_20_tickers",
-            return_value=pd.DataFrame({"symbol": ["BTCUSDT"]}),
-        ):
+        with patch.object(service, "get_tracked_symbols", return_value=["BTCUSDT"]):
             df = service.get_klines("1h")
         self.assertEqual(len(df), 1)
         expected_columns = {

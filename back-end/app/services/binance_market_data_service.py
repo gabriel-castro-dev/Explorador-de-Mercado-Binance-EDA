@@ -4,6 +4,7 @@ from typing import Optional
 import pandas as pd
 
 from app.clients.binance_client import BinanceClient
+from app.core.symbols import load_tracked_symbols
 
 logger = logging.getLogger(__name__)
 
@@ -171,6 +172,21 @@ class BinanceMarketService:
             logger.error("Falha ao obter os 20 principais tickers USDT")
             return pd.DataFrame(columns=["symbol"])
 
+    def get_tracked_symbols(self) -> list[str]:
+        """Return the tracked trading pairs.
+
+        Prefers the fixed list versioned in ``symbols.yml`` (stable universe
+        for the ML dataset). Falls back to the dynamic top-20 USDT pairs by
+        quote volume when no fixed list is configured.
+
+        Returns:
+            List of symbols, or an empty list on failure.
+        """
+        fixed = load_tracked_symbols()
+        if fixed:
+            return list(fixed)
+        return self.get_top_20_tickers()["symbol"].tolist()
+
     def get_orderbook_tickers(self) -> pd.DataFrame:
         """Fetch order book information for the top 20 USDT pairs.
 
@@ -178,11 +194,10 @@ class BinanceMarketService:
             DataFrame with order book data, or an empty DataFrame on failure.
         """
 
-        df_tickers = self.get_top_20_tickers()
-        symbols = df_tickers["symbol"].tolist()
+        symbols = self.get_tracked_symbols()
         all_data = []
 
-        if not df_tickers.empty:
+        if symbols:
             for symbol in symbols:
                 data = self.client.get_orderbook_tickers(symbol=symbol)
                 if isinstance(data, dict) and data:
@@ -214,11 +229,10 @@ class BinanceMarketService:
         Returns:
             DataFrame with OHLCV data, or an empty DataFrame on failure.
         """
-        df_tickers = self.get_top_20_tickers()
-        symbols = df_tickers["symbol"].tolist()
+        symbols = self.get_tracked_symbols()
         all_data = []
 
-        if not df_tickers.empty:
+        if symbols:
             for symbol in symbols:
                 data = self.client.get_klines(symbol=symbol, interval=interval)
                 if isinstance(data, list) and data:
@@ -255,11 +269,10 @@ class BinanceMarketService:
         Returns:
             DataFrame with historical klines, or an empty DataFrame on failure.
         """
-        df_tickers = self.get_top_20_tickers()
-        symbols = df_tickers["symbol"].tolist()
+        symbols = self.get_tracked_symbols()
         all_data = []
 
-        if not df_tickers.empty:
+        if symbols:
             for symbol in symbols:
                 data = self.client.get_historical_klines(
                     symbol=symbol,
@@ -298,11 +311,10 @@ class BinanceMarketService:
         Returns:
             DataFrame with generated klines, or an empty DataFrame on failure.
         """
-        df_tickers = self.get_top_20_tickers()
-        symbols = df_tickers["symbol"].tolist()
+        symbols = self.get_tracked_symbols()
         all_data = []
 
-        if not df_tickers.empty:
+        if symbols:
             for symbol in symbols:
                 data = list(
                     self.client.get_historical_klines_generator(
@@ -335,7 +347,7 @@ class BinanceMarketService:
         batch_size: int = 500,
     ):
         """Yield normalized historical candles per symbol and batch."""
-        symbols = self.get_top_20_tickers()["symbol"].tolist()
+        symbols = self.get_tracked_symbols()
         for symbol in symbols:
             rows: list[list] = []
             try:

@@ -1,0 +1,32 @@
+# Fixed universe of tracked trading pairs.
+#
+# Snapshot of the top-20 USDT pairs by 24h quote volume, taken from
+# ticker_24hr_history on 2026-08-19. Freezing the list keeps the ML dataset
+# stable: symbols no longer rotate in/out of the daily jobs, so the series
+# have no gaps. Symbols listed on Binance after the backfill horizon simply
+# start at their listing date.
+#
+# Editing this list changes what the daily jobs ingest AND what the backfill
+# targets. Removing a symbol stops new data; its history stays until cleaned.
+# Delete this file (or empty the list) to fall back to the dynamic top-20.
+symbols:
+  - BTCUSDT
+  - ETHUSDT
+  - SOLUSDT
+  - LINKUSDT
+  - PAXGUSDT
+  - TRXUSDT
+  - ADAUSDT
+  - SNXXBUSDT
+  - DOGEUSDT
+  - BNBUSDT
+  - MVLLBUSDT
+  - XRPUSDT
+  - AVAXUSDT
+  - ZECUSDT
+  - OPNUSDT
+  - PORTALUSDT
+  - ATOMUSDT
+  - HEMIUSDT
+  - AXTIBUSDT
+  - PLUMEUSDT
