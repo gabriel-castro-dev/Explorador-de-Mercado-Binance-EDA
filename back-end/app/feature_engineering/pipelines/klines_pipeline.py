@@ -3,6 +3,9 @@
 import logging
 
 from app.feature_engineering.pipelines.base import BasePipeline
+from app.feature_engineering.transforms.technical_indicators import (
+    TechnicalIndicatorsTransform,
+)
 from app.repositories.features_repository import FeaturesRepository
 from app.repositories.klines_repository import KlinesRepository
 
@@ -78,7 +81,7 @@ class KlinesPipeline(BasePipeline):
             macd_line = processed["ema_12"] - processed["ema_26"]
             processed["macd_signal"] = macd_line.groupby(
                 processed["symbol"], sort=False
-            ).transform(lambda values: values.ewm(span=9, adjust=False).mean())
+            ).transform(TechnicalIndicatorsTransform.calculate_macd_signal)
             if "open_time" not in processed.columns:
                 raise ValueError("Candles devem conter a coluna 'open_time'.")
             processed = processed.rename(columns={"open_time": "timestamp"})
