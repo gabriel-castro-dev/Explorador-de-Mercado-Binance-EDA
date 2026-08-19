@@ -241,6 +241,66 @@ o banco com o token do usuário — o RLS decide as linhas. Recomendado ativar s
 keys assimétricas: Dashboard → Settings → JWT Signing Keys → "Migrate JWT secret" →
 "Rotate keys" (revogar o secret legado ~1h depois).
 
+---
+
+## Referência da API (v1)
+
+Todas as rotas de dados exigem `Authorization: Bearer <access_token>` (401 sem token).
+Documentação interativa completa: `/docs` (Swagger) e `/redoc` com a API rodando.
+
+| Método | Rota | Descrição | Parâmetros |
+| :--- | :--- | :--- | :--- |
+| GET | `/health` | Liveness (público, sem banco) | — |
+| GET | `/api/v1/symbols` | Ativos rastreados | — |
+| GET | `/api/v1/klines/{timeframe}` | Candles OHLCV, mais recente primeiro | path: `15m`\|`1h`\|`1d` · query: `symbol` (obrigatório), `limit` (1-1000, padrão 200), `start`/`end` (ISO 8601) |
+| GET | `/api/v1/features/{timeframe}` | Indicadores técnicos calculados | idem klines; `24h` é aceito como sinônimo de `1d` |
+| GET | `/api/v1/tickers/24h` | Snapshot 24h mais recente por ativo | query: `symbol` (opcional) |
+
+### Obtendo um access token sem o front-end
+
+Enquanto o dashboard Nuxt não existe, autentique um usuário de teste direto no Supabase Auth:
+
+```bash
+curl -s -X POST "https://<projeto>.supabase.co/auth/v1/token?grant_type=password" \
+  -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "teste@exemplo.com", "password": "sua-senha"}'
+# → {"access_token": "eyJ...", "expires_in": 3600, ...}
+```
+
+### Exemplos
+
+```bash
+TOKEN="eyJ..."   # access_token acima
+
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://127.0.0.1:8000/api/v1/klines/1h?symbol=BTCUSDT&limit=2"
+```
+
+```json
+[
+  {
+    "symbol": "BTCUSDT",
+    "open_time": "2026-08-19T14:00:00+00:00",
+    "open": 113250.1, "high": 113900.0, "low": 112800.5, "close": 113512.3,
+    "volume": 1284.52,
+    "close_time": "2026-08-19T14:59:59.999000+00:00",
+    "quote_asset_volume": 145630021.4,
+    "number_of_trades": 183220,
+    "taker_buy_base_asset_volume": 640.1,
+    "taker_buy_quote_asset_volume": 72701123.9
+  }
+]
+```
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://127.0.0.1:8000/api/v1/features/1d?symbol=BTCUSDT&limit=1"
+# → [{"symbol": "BTCUSDT", "timestamp": "...", "sma_20": ..., "rsi_14": ..., "macd": ..., ...}]
+```
+
+Comportamentos: histórico vazio → `200 []` · timeframe inválido → `422` · token ausente/expirado → `401` com `WWW-Authenticate: Bearer` · indicadores podem vir `null` nas janelas de warm-up (ex.: `sma_200` nas primeiras 200 velas).
+
 # Licença
 
 Este projeto está sendo desenvolvido como um portfólio avançado de Engenharia e Ciência de Dados, demonstrando habilidades com automação de infraestrutura, modelagem estatística e arquitetura escalável de software.

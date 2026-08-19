@@ -65,6 +65,10 @@ Seams de injeção (preparação para FastAPI + Supabase Auth): `BaseRepository(
 
 Modelo de acesso no Supabase (migrations em `back-end/supabase/migrations/`, aplicadas em 2026-08-19): RLS ativo nas 9 tabelas de `public`; policy `authenticated_select` (`for select to authenticated using (true)`) em todas; `anon` sem grants nem policies (deny); escrita e a RPC `clean_old_data` só para `service_role` (o `SUPABASE_KEY` dos jobs). Event trigger `ensure_rls` habilita RLS automaticamente em toda tabela nova — ela nasce deny-all até receber uma policy explícita.
 
+### Roadmap
+
+Próximos marcos (front-end, UX, ML, deploy) em [docs/ROADMAP.md](docs/ROADMAP.md) — passos independentes, detalhar em plan mode na hora de cada um.
+
 ## Agent skills
 
 ### Issue tracker
