@@ -294,7 +294,7 @@ class BinanceMarketService:
             return pd.DataFrame()
 
     def get_historical_klines_generator(
-        self, interval: str, timestamp: str
+        self, interval: str, start_str: Optional[str] = None, end_str: Optional[str] = None
     ) -> pd.DataFrame:
         """Fetch historical klines via the generator API for the top 20 USDT pairs.
 
@@ -315,7 +315,7 @@ class BinanceMarketService:
             for symbol in symbols:
                 data = list(
                     self.client.get_historical_klines_generator(
-                        symbol=symbol, interval=interval, start_str=timestamp
+                        symbol=symbol, interval=interval, start_str=start_str, end_str=end_str
                     )
                 )
                 if isinstance(data, list) and data:
@@ -337,14 +337,15 @@ class BinanceMarketService:
         else:
             logger.error("Falha ao gerar k-lines históricas para os tickers USDT")
             return pd.DataFrame()
-    def iter_historical_klines(self, interval: str, timestamp: str, batch_size: int = 500):
+            
+    def iter_historical_klines(self, interval: str, start_str: Optional[str] = None, end_str: Optional[str] = None, batch_size: int = 500):
         """Yield normalized historical candles per symbol and batch."""
         symbols = self.get_top_20_tickers()["symbol"].tolist()
         for symbol in symbols:
             rows: list[list] = []
             try:
                 for kline in self.client.get_historical_klines_generator(
-                    symbol=symbol, interval=interval, timestamp=timestamp
+                    symbol=symbol, interval=interval, start_str=start_str, end_str=end_str
                 ):
                     rows.append(kline + [symbol])
                     if len(rows) == batch_size:
