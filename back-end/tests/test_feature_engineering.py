@@ -213,3 +213,171 @@ class SettingsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class JobsTests(unittest.TestCase):
+    def _run(self, argv):
+        import jobs
+
+        with (
+            patch.object(sys, "argv", argv),
+            patch.object(jobs, "setup_logging"),
+            patch.object(jobs, "BinanceMarketService") as service_cls,
+            patch.object(jobs, "KlinesRepository") as klines_cls,
+            patch.object(jobs, "TickersRepository") as tickers_cls,
+            patch.object(jobs, "ingest_klines") as ingest_klines,
+            patch.object(jobs, "ingest_ticker_24hr") as ingest_ticker,
+            patch.object(jobs, "ingest_orderbook_tickers") as ingest_orderbook,
+        ):
+            code = jobs.main()
+        return code, {
+            "service_cls": service_cls,
+            "klines_cls": klines_cls,
+            "tickers_cls": tickers_cls,
+            "ingest_klines": ingest_klines,
+            "ingest_ticker": ingest_ticker,
+            "ingest_orderbook": ingest_orderbook,
+        }
+
+    def test_daily_dispatches_all_intervals_in_order(self):
+        code, mocks = self._run(["jobs.py", "daily"])
+        self.assertEqual(code, 0)
+        intervals = [call.args[2] for call in mocks["ingest_klines"].call_args_list]
+        self.assertEqual(intervals, ["15m", "1h", "1d"])
+        mocks["ingest_ticker"].assert_not_called()
+        mocks["ingest_orderbook"].assert_not_called()
+
+    def test_failure_returns_exit_code_1(self):
+        import jobs
+
+        with (
+            patch.object(sys, "argv", ["jobs.py", "five-minutes"]),
+            patch.object(jobs, "setup_logging"),
+            patch.object(jobs, "BinanceMarketService"),
+            patch.object(jobs, "TickersRepository"),
+            patch.object(
+                jobs, "ingest_orderbook_tickers", side_effect=RuntimeError("boom")
+            ),
+        ):
+            self.assertEqual(jobs.main(), 1)
+
+    def test_unknown_job_returns_exit_code_2_without_connecting(self):
+        code, mocks = self._run(["jobs.py", "bogus"])
+        self.assertEqual(code, 2)
+        mocks["service_cls"].assert_not_called()
+
+
+class TickersIngestionTests(unittest.TestCase):
+    def test_ticker_24hr_rows_are_normalized_and_persisted(self):
+        from app.ingestion.tickers import ingest_ticker_24hr
+
+        service = MagicMock()
+        service.get_ticker_24hr.return_value = pd.DataFrame(
+            {
+                "symbol": ["BTCUSDT"],
+                "priceChange": [1.0],
+                "openTime": [pd.Timestamp("2026-01-01 10:20:30")],
+                "closeTime": [pd.Timestamp("2026-01-02 10:20:30")],
+            }
+        )
+        repo = MagicMock()
+        repo.upsert_ticker_24hr.return_value = 1
+        self.assertEqual(ingest_ticker_24hr(service, repo), 1)
+        persisted = repo.upsert_ticker_24hr.call_args.args[0]
+        self.assertIn("price_change", persisted.columns)
+        self.assertEqual(persisted["open_time"].iloc[0], "2026-01-01 10:20:30")
+        self.assertEqual(persisted["close_time"].iloc[0], "2026-01-02 10:20:30")
+
+    def test_orderbook_rows_are_normalized_and_stamped(self):
+        from app.ingestion.tickers import ingest_orderbook_tickers
+
+        service = MagicMock()
+        service.get_orderbook_tickers.return_value = pd.DataFrame(
+            {"symbol": ["BTCUSDT"], "bidPrice": [1.0], "askPrice": [2.0]}
+        )
+        repo = MagicMock()
+        repo.upsert_orderbook_tickers.return_value = 1
+        self.assertEqual(ingest_orderbook_tickers(service, repo), 1)
+        persisted = repo.upsert_orderbook_tickers.call_args.args[0]
+        self.assertIn("bid_price", persisted.columns)
+        import re
+
+        self.assertRegex(
+            persisted["fetched_at"].iloc[0], r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$"
+        )
+
+    def test_repository_errors_propagate(self):
+        from app.ingestion.tickers import ingest_orderbook_tickers
+
+        service = MagicMock()
+        service.get_orderbook_tickers.return_value = pd.DataFrame(
+            {"symbol": ["BTCUSDT"], "bidPrice": [1.0]}
+        )
+        repo = MagicMock()
+        repo.upsert_orderbook_tickers.side_effect = RuntimeError("db down")
+        with self.assertRaises(RuntimeError):
+            ingest_orderbook_tickers(service, repo)
+
+
+class TickersRepositoryTests(unittest.TestCase):
+    def _repo(self):
+        from app.repositories.tickers_repository import TickersRepository
+
+        builder = MagicMock()
+        builder.upsert.return_value = builder
+        supabase = MagicMock()
+        supabase.table.return_value = builder
+        return TickersRepository(supabase=supabase), supabase, builder
+
+    def test_upsert_ticker_24hr_uses_conflict_key(self):
+        repo, supabase, builder = self._repo()
+        count = repo.upsert_ticker_24hr(
+            pd.DataFrame({"symbol": ["BTCUSDT"], "open_time": ["2026-01-01 00:00:00"]})
+        )
+        self.assertEqual(count, 1)
+        supabase.table.assert_called_once_with("ticker_24hr_history")
+        self.assertEqual(
+            builder.upsert.call_args.kwargs["on_conflict"], "symbol,open_time"
+        )
+
+    def test_upsert_orderbook_uses_conflict_key_and_propagates_errors(self):
+        repo, supabase, builder = self._repo()
+        repo.upsert_orderbook_tickers(
+            pd.DataFrame({"symbol": ["BTCUSDT"], "fetched_at": ["2026-01-01 00:00:00"]})
+        )
+        supabase.table.assert_called_once_with("orderbook_tickers")
+        self.assertEqual(
+            builder.upsert.call_args.kwargs["on_conflict"], "symbol,fetched_at"
+        )
+        builder.execute.side_effect = RuntimeError("db down")
+        with self.assertRaises(RuntimeError):
+            repo.upsert_orderbook_tickers(pd.DataFrame({"symbol": ["X"]}))
+
+
+class KlinesRepositoryTests(unittest.TestCase):
+    def test_upsert_klines_batches_and_uses_conflict_key(self):
+        from app.repositories.klines_repository import KlinesRepository
+
+        builder = MagicMock()
+        builder.upsert.return_value = builder
+        supabase = MagicMock()
+        supabase.table.return_value = builder
+        repo = KlinesRepository(supabase=supabase)
+        rows = 501
+        df = pd.DataFrame(
+            {
+                "symbol": ["BTCUSDT"] * rows,
+                "Open_Time": pd.date_range("2026-01-01", periods=rows, freq="min"),
+                "Open": [1.0] * rows,
+                "High": [2.0] * rows,
+                "Low": [0.5] * rows,
+                "Close": [1.5] * rows,
+                "Volume": [10.0] * rows,
+            }
+        )
+        self.assertEqual(repo.upsert_klines("15m", df), rows)
+        supabase.table.assert_called_with("klines_15m")
+        self.assertEqual(builder.upsert.call_count, 2)
+        self.assertEqual(
+            builder.upsert.call_args.kwargs["on_conflict"], "symbol,open_time"
+        )
