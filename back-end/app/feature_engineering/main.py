@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from config import setup_logging
 from app.feature_engineering.pipelines.klines_pipeline import KlinesPipeline
 from app.feature_engineering.pipelines.orderbook import OrderbookPipeline
 from app.feature_engineering.pipelines.ticker_24hr import Ticker24hrPipeline
@@ -51,5 +52,5 @@ def run() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    setup_logging()
     run()

@@ -5,6 +5,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 from app.feature_engineering.pipelines.klines_pipeline import KlinesPipeline
+from config import setup_logging
 from app.repositories.features_repository import FeaturesRepository
 from app.repositories.klines_repository import KlinesRepository
 from app.services.binance_market_data_service import BinanceMarketService
@@ -47,7 +48,7 @@ def run(
 
 
 def main() -> int:
-    logging.basicConfig(level=logging.INFO)
+    setup_logging()
     try:
         run()
     except Exception:
