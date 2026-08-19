@@ -73,6 +73,7 @@ jobs:
             docker:
               - 'back-end/Dockerfile.jobs'
               - 'back-end/Dockerfile.feature-engineering'
+              - 'back-end/Dockerfile.api'
               - 'back-end/pyproject.toml'
               - 'back-end/uv.lock'
 
@@ -90,6 +91,8 @@ jobs:
             image: crypto-jobs
           - dockerfile: Dockerfile.feature-engineering
             image: crypto-feature-engineering
+          - dockerfile: Dockerfile.api
+            image: crypto-api
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3

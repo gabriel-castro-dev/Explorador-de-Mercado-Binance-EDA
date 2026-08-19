@@ -40,7 +40,7 @@ Usuário
 | **Jobs de Coleta** | Python (`uv`) + Docker | Ingestão agendada (orderbook a cada 5min, ticker 24h a cada hora, klines diário) sem duplicidade no banco. | GitHub Actions | Em produção |
 | **Feature Engineering** | Python (pandas, TA-Lib) + Docker | Cálculo diário de indicadores técnicos por timeframe + política de retenção. | GitHub Actions | Em produção |
 | **Banco de Dados** | Supabase | PostgreSQL persistente com RLS para séries históricas, indicadores, previsões e versionamento de modelos. | Supabase Cloud | Em produção |
-| **Back-end (API)** | FastAPI | Endpoints REST, autenticação via Supabase Auth, documentação Swagger e entrega de previsões. | VM | Em construção |
+| **Back-end (API)** | FastAPI | Endpoints REST (klines, features, symbols, tickers 24h), autenticação via Supabase Auth (JWT/JWKS + RLS), Swagger. | VM | Em desenvolvimento (v1 pronta; deploy pendente) |
 | **Machine Learning** | Scikit-Learn / Prophet (a definir) | Scripts de treinamento e geração de projeções diárias de preços. | GitHub Actions / Runner | Planejado |
 | **Front-end** | Vue 3 + Nuxt + Tailwind | Dashboard interativo para comparação de ativos, gráficos temporais e performance dos modelos. | Domínio grátis da VM Hostinger ou Vercel (a definir) | Planejado |
 
@@ -151,7 +151,10 @@ crypto-forecasting-app/
 │   │   ├── services/                # Transformação dos dados da Binance em DataFrames tipados
 │   │   ├── ingestion/               # Jobs de ingestão: fetch no service + upsert no repository
 │   │   ├── repositories/            # Persistência pura no Supabase
-│   │   ├── controllers/             # Rotas FastAPI + auth — próximo passo (em construção)
+│   │   ├── controllers/             # Rotas FastAPI (klines, features, symbols, tickers) + deps de auth/RLS
+│   │   ├── auth/                    # Verificação local de JWT do Supabase (JWKS)
+│   │   ├── schemas/                 # Response models Pydantic
+│   │   ├── core/                    # Vocabulário compartilhado (Timeframe)
 │   │   └── feature_engineering/     # Pipeline offline de features + retenção
 │   │       ├── config/              # features.yml (features por timeframe + retenção)
 │   │       ├── pipelines/           # Orquestração por fonte (klines, orderbook, ticker)
@@ -170,7 +173,7 @@ crypto-forecasting-app/
 └── ml_models/                       # Modelos preditivos e métricas — planejado
 ```
 
-> `controllers/`, `front-end/` e `ml_models/` ainda não existem no repo — são os próximos marcos.
+> `front-end/` e `ml_models/` ainda não existem no repo — são os próximos marcos.
 
 ## Instalação & Setup de Desenvolvimento
 
@@ -216,15 +219,27 @@ uv run python jobs.py daily          # klines 15m/1h/1d
 uv run python -m app.feature_engineering.main   # features + retenção
 ```
 
-### 5. Rodando a API localmente (em construção — próximo passo)
+### 5. Rodando a API localmente
 
-Quando os `controllers/` forem implementados:
+Além do `.env` dos jobs, a API precisa de:
+
+```env
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_...   # ou a anon key legada — NUNCA a service_role
+# SUPABASE_JWT_SECRET=...                     # só se o projeto ainda usa HS256 legado
+# API_CORS_ORIGINS=http://localhost:3000      # origens do front, separadas por vírgula
+```
 
 ```bash
-uv run uvicorn app.main:app --reload
+uv run fastapi dev   # entrypoint app.main:app declarado no pyproject
 ```
 
 Documentação interativa (Swagger): http://127.0.0.1:8000/docs
+
+Auth: o front autentica direto no Supabase Auth (supabase-js) e envia o access token
+em `Authorization: Bearer <jwt>`; a API valida o token localmente via JWKS e consulta
+o banco com o token do usuário — o RLS decide as linhas. Recomendado ativar signing
+keys assimétricas: Dashboard → Settings → JWT Signing Keys → "Migrate JWT secret" →
+"Rotate keys" (revogar o secret legado ~1h depois).
 
 # Licença
 

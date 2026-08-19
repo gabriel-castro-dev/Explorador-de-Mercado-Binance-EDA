@@ -29,6 +29,8 @@ jobs:
             image: crypto-jobs
           - dockerfile: Dockerfile.feature-engineering
             image: crypto-feature-engineering
+          - dockerfile: Dockerfile.api
+            image: crypto-api
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3

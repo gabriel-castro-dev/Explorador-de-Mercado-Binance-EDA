@@ -32,7 +32,23 @@ class Settings(BaseSettings):
     USE_TESTNET: bool = True
     BINANCE_PROXY: Optional[str] = None
 
-    @field_validator("BINANCE_API_KEY", "BINANCE_API_SECRET", "SUPABASE_KEY")
+    # --- API (FastAPI) ---
+    SUPABASE_PUBLISHABLE_KEY: Optional[str] = (
+        None  # sb_publishable_... ou anon legacy; NUNCA service_role
+    )
+    SUPABASE_JWT_SECRET: Optional[str] = (
+        None  # fallback HS256 legado; prefira signing keys assimetricas
+    )
+    API_CORS_ORIGINS: str = "http://localhost:3000"  # separado por virgula; default dev Nuxt
+    API_VERSION: str = "0.1.0"
+
+    @field_validator(
+        "BINANCE_API_KEY",
+        "BINANCE_API_SECRET",
+        "SUPABASE_KEY",
+        "SUPABASE_PUBLISHABLE_KEY",
+        "SUPABASE_JWT_SECRET",
+    )
     @classmethod
     def strip_values(cls, v: str) -> str:
         """Strip surrounding whitespace from sensitive string settings.
