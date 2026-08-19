@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from typing import Optional
 
 from binance.client import Client
-from config import settings
+from config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,7 @@ class BinanceClient:
             RuntimeError: If the connection to the Binance API cannot be established.
         """
         try:
+            settings = get_settings()
             self.api_key: str = settings.BINANCE_API_KEY
             self.api_secret: str = settings.BINANCE_API_SECRET
             self.test_net: bool = settings.USE_TESTNET

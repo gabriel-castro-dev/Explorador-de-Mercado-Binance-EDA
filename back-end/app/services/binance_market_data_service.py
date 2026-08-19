@@ -21,12 +21,19 @@ class BinanceMarketService:
         client: Authenticated BinanceClient used for market data requests.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, client: BinanceClient | None = None) -> None:
         """Initialize the market data service.
+
+        Args:
+            client: Optional pre-built Binance client; defaults to a new
+                authenticated connection.
 
         Raises:
             RuntimeError: If the connection to the Binance API cannot be established.
         """
+        if client is not None:
+            self.client = client
+            return
         try:
             self.client = BinanceClient()
             logger.info("BinanceMarketService inicializado com sucesso")
