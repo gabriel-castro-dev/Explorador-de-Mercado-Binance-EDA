@@ -1,11 +1,9 @@
 """Persistence and reads for candlestick tables."""
 
 import logging
-from typing import Optional
 
 import pandas as pd
 from app.repositories.base import BaseRepository
-from app.services.binance_market_data_service import BinanceMarketService
 
 logger = logging.getLogger(__name__)
 
@@ -50,10 +48,6 @@ class KlinesRepository(BaseRepository):
         "taker_buy_quote_asset_volume",
     )
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.binance_service = BinanceMarketService()
-
     def get_latest_klines(self, timeframe: str) -> pd.DataFrame:
         response = (
             self.supabase.table(f"klines_{timeframe}")
@@ -73,16 +67,6 @@ class KlinesRepository(BaseRepository):
             ).execute()
         logger.info("%s klines persistidos em klines_%s.", len(prepared), interval)
         return len(prepared)
-
-    def save_klines(self, interval: str, start_str: Optional[str] = None):
-        df = (
-            self.binance_service.get_historical_klines(interval, start_str)
-            if start_str
-            else self.binance_service.get_klines(interval)
-        )
-        if df.empty:
-            return None
-        return {"status": "processed", "total": self.upsert_klines(interval, df)}
 
     def _prepare_klines(self, df: pd.DataFrame) -> pd.DataFrame:
         prepared = (

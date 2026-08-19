@@ -1,12 +1,90 @@
 import logging
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from typing import Optional
 
 from binance.client import Client
-from config import settings
+from config import get_settings
 
 logger = logging.getLogger(__name__)
+
+
+class BinanceUnauthorizedError(PermissionError):
+    """The API key lacks permission for the requested endpoint (code -2015)."""
+
+
+class BinanceInvalidSymbolError(KeyError):
+    """An invalid symbol or parameter was sent to the API (codes -1100/-1121)."""
+
+
+def _raise_if_fatal(error: Exception, context: str) -> None:
+    """Convert non-retryable API errors into typed exceptions.
+
+    Args:
+        error: Exception raised by the Binance SDK.
+        context: Human-readable description of the failed request.
+
+    Raises:
+        BinanceUnauthorizedError: For permission errors (code -2015).
+        BinanceInvalidSymbolError: For invalid symbols/parameters (-1100/-1121).
+    """
+    error_msg = str(error)
+    if "APIError(code=-2015)" in error_msg:
+        logger.error("Erro de permissão: %s", context)
+        raise BinanceUnauthorizedError(
+            f"Failed request ({context}): "
+            "user doesn't have permission to do this request."
+        )
+    if "APIError(code=-1100)" in error_msg or "APIError(code=-1121)" in error_msg:
+        logger.error("Símbolo/parâmetro inválido: %s", context)
+        raise BinanceInvalidSymbolError(
+            f"Failed request ({context}): invalid symbol or parameter provided."
+        )
+
+
+def call_with_retry(
+    fn: Callable[[], object],
+    *,
+    retries: int,
+    delay: float,
+    context: str,
+    validate: Callable[[object], bool] = bool,
+    empty: object = None,
+    sleep: Callable[[float], None] = time.sleep,
+):
+    """Call ``fn`` with retries, typed fatal errors, and a silent-empty fallback.
+
+    Args:
+        fn: Zero-argument callable performing the API request.
+        retries: Maximum number of attempts.
+        delay: Seconds to wait between attempts.
+        context: Human-readable description used in log messages.
+        validate: Predicate deciding whether a result is acceptable.
+        empty: Value returned after exhausting all retries.
+        sleep: Injectable sleep function (for tests).
+
+    Returns:
+        The first result accepted by ``validate``, or ``empty`` on exhaustion.
+
+    Raises:
+        BinanceUnauthorizedError: For permission errors (code -2015).
+        BinanceInvalidSymbolError: For invalid symbols/parameters (-1100/-1121).
+    """
+    for attempt in range(retries):
+        try:
+            data = fn()
+            if validate(data):
+                return data
+        except Exception as error:  # noqa: BLE001
+            _raise_if_fatal(error, context)
+            logger.warning(
+                "[Tentativa %s/%s] %s: %s", attempt + 1, retries, context, error
+            )
+        if attempt < retries - 1:
+            sleep(delay)
+    logger.error("Falha após %s tentativas: %s", retries, context)
+    return empty
+
 
 
 class BinanceClient:
@@ -31,6 +109,7 @@ class BinanceClient:
             RuntimeError: If the connection to the Binance API cannot be established.
         """
         try:
+            settings = get_settings()
             self.api_key: str = settings.BINANCE_API_KEY
             self.api_secret: str = settings.BINANCE_API_SECRET
             self.test_net: bool = settings.USE_TESTNET
@@ -109,28 +188,18 @@ class BinanceClient:
 
         Returns:
             List of ticker dicts, or an empty list after exhausting all retries.
-        """
-        for attempt in range(self.MAX_RETRIES):
-            try:
-                data = self.client.get_all_tickers()
-                if isinstance(data, list) and len(data) > 0:
-                    return data
-            except Exception as e:  # noqa: BLE001
-                error_msg = str(e)
-                if "APIError(code=-2015)" in error_msg:
-                    logger.error("Erro de permissão ao obter tickers")
-                    raise PermissionError(
-                        "Failed to retrieve tickers, user doesn't have permission to do this request."
-                    )
-                logger.warning(
-                    f"[Tentativa {attempt + 1}/{self.MAX_RETRIES}] {error_msg}"
-                )
-                if attempt < self.MAX_RETRIES - 1:
-                    logger.warning(f"Aguardando {self.RETRY_DELAY}s para retry...")
-                    time.sleep(self.RETRY_DELAY)
 
-        logger.error("Falha ao obter tickers após todas as tentativas")
-        return []
+        Raises:
+            BinanceUnauthorizedError: If the API key lacks permission.
+        """
+        return call_with_retry(
+            self.client.get_all_tickers,
+            retries=self.MAX_RETRIES,
+            delay=self.RETRY_DELAY,
+            context="tickers",
+            validate=lambda data: isinstance(data, list) and len(data) > 0,
+            empty=[],
+        )
 
     def get_ticker_24hr(self, symbol: str) -> dict:
         """Fetch 24-hour ticker data for a trading pair.
@@ -142,82 +211,40 @@ class BinanceClient:
             Dict with 24-hour ticker data, or an empty dict after exhausting all retries.
 
         Raises:
-            PermissionError: If the API key lacks permission for this request.
-            KeyError: If the provided symbol is invalid.
+            BinanceUnauthorizedError: If the API key lacks permission.
+            BinanceInvalidSymbolError: If the provided symbol is invalid.
         """
-        for attempt in range(self.MAX_RETRIES):
-            try:
-                data = self.client.get_ticker(symbol=symbol)
-                if isinstance(data, dict):
-                    return data
-            except Exception as e:  # noqa: BLE001
-                error_msg = str(e)
-                if "APIError(code=-2015)" in error_msg:
-                    logger.error(f"Erro de permissão para {symbol}")
-                    raise PermissionError(
-                        f"Failed to retrieve last 24hrs ticker for {symbol}, user doesn't have permission to do this request."
-                    )
-                if (
-                    "APIError(code=-1100)" in error_msg
-                    or "APIError(code=-1121)" in error_msg
-                ):
-                    logger.error(f"Símbolo inválido: {symbol}")
-                    raise KeyError(
-                        f"Failed to get ticker 24hr for {symbol}, invalid symbol provided."
-                    )
-
-                logger.warning(
-                    f"[Tentativa {attempt + 1}/{self.MAX_RETRIES}] Erro para {symbol}: {error_msg}"
-                )
-                if attempt < self.MAX_RETRIES - 1:
-                    time.sleep(self.RETRY_DELAY)
-
-        logger.error("Falha ao obter dados 24h após todas as tentativas")
-        return {}
+        return call_with_retry(
+            lambda: self.client.get_ticker(symbol=symbol),
+            retries=self.MAX_RETRIES,
+            delay=self.RETRY_DELAY,
+            context=f"ticker 24hr de {symbol}",
+            validate=lambda data: isinstance(data, dict),
+            empty={},
+        )
 
     def get_orderbook_tickers(self, symbol: str | list) -> list | dict:
         """Fetch order book ticker information for one or more pairs.
 
         Args:
-            symbol: Trading pair (e.g., 'BTCUSDT') or a list of pairs
-                (e.g., ['BTCUSDT', 'ETHUSDT']).
+            symbol: Trading pair (e.g., 'BTCUSDT') or a list of pairs.
 
         Returns:
             List or dict with order book data, or an empty list after
             exhausting all retries.
 
         Raises:
-            PermissionError: If the API key lacks permission for this request.
-            KeyError: If the provided symbol is invalid.
+            BinanceUnauthorizedError: If the API key lacks permission.
+            BinanceInvalidSymbolError: If the provided symbol is invalid.
         """
-        for attempt in range(self.MAX_RETRIES):
-            try:
-                data = self.client.get_orderbook_tickers(symbol=symbol)
-                if isinstance(data, (list, dict)):
-                    return data
-            except Exception as e:  # noqa: BLE001
-                error_msg = str(e)
-                if "APIError(code=-2015)" in error_msg:
-                    logger.error(f"Erro de permissão para {symbol}")
-                    raise PermissionError(
-                        f"Failed to retrieve orderbook tickers for {symbol}, user doesn't have permission to do this request."
-                    )
-                if (
-                    "APIError(code=-1100)" in error_msg
-                    or "APIError(code=-1121)" in error_msg
-                ):
-                    logger.error(f"Símbolo inválido: {symbol}")
-                    raise KeyError(
-                        f"Failed to retrieve orderbook tickers for {symbol}, invalid symbol provided."
-                    )
-                logger.warning(
-                    f"[Tentativa {attempt + 1}/{self.MAX_RETRIES}] {error_msg}"
-                )
-                if attempt < self.MAX_RETRIES - 1:
-                    time.sleep(self.RETRY_DELAY)
-
-        logger.error(f"Falha ao obter order book para {symbol}")
-        return []
+        return call_with_retry(
+            lambda: self.client.get_orderbook_tickers(symbol=symbol),
+            retries=self.MAX_RETRIES,
+            delay=self.RETRY_DELAY,
+            context=f"orderbook de {symbol}",
+            validate=lambda data: isinstance(data, (list, dict)),
+            empty=[],
+        )
 
     def get_klines(self, symbol: str, interval: str) -> list:
         """Fetch real-time kline (candlestick) data for a trading pair.
@@ -230,37 +257,17 @@ class BinanceClient:
             List of kline rows, or an empty list after exhausting all retries.
 
         Raises:
-            PermissionError: If the API key lacks permission for this request.
-            KeyError: If an invalid parameter is provided.
+            BinanceUnauthorizedError: If the API key lacks permission.
+            BinanceInvalidSymbolError: If an invalid parameter is provided.
         """
-        for attempt in range(self.MAX_RETRIES):
-            try:
-                data = self.client.get_klines(symbol=symbol, interval=interval)
-                if isinstance(data, list) and len(data) > 0:
-                    return data
-            except Exception as e:  # noqa: BLE001
-                error_msg = str(e)
-                if "APIError(code=-2015)" in error_msg:
-                    logger.error(f"Erro de permissão para {symbol}")
-                    raise PermissionError(
-                        f"Failed to retrieve last klines for {symbol}, user doesn't have permission to do this request."
-                    )
-                if (
-                    "APIError(code=-1100)" in error_msg
-                    or "APIError(code=-1121)" in error_msg
-                ):
-                    logger.error(f"Parâmetro inválido para {symbol}")
-                    raise KeyError(
-                        f"Failed to retrieve klines for {symbol}, invalid parameter provided."
-                    )
-                logger.warning(
-                    f"[Tentativa {attempt + 1}/{self.MAX_RETRIES}] {error_msg}"
-                )
-                if attempt < self.MAX_RETRIES - 1:
-                    time.sleep(self.RETRY_DELAY)
-
-        logger.error(f"Falha ao obter k-lines para {symbol}")
-        return []
+        return call_with_retry(
+            lambda: self.client.get_klines(symbol=symbol, interval=interval),
+            retries=self.MAX_RETRIES,
+            delay=self.RETRY_DELAY,
+            context=f"k-lines de {symbol}",
+            validate=lambda data: isinstance(data, list) and len(data) > 0,
+            empty=[],
+        )
 
     def get_historical_klines(
         self,
@@ -283,88 +290,69 @@ class BinanceClient:
             List of kline rows, or an empty list after exhausting all retries.
 
         Raises:
-            PermissionError: If the API key lacks permission for this request.
-            KeyError: If an invalid parameter is provided.
+            BinanceUnauthorizedError: If the API key lacks permission.
+            BinanceInvalidSymbolError: If an invalid parameter is provided.
         """
-        for attempt in range(self.MAX_RETRIES):
-            try:
-                data = self.client.get_historical_klines(
-                    symbol=symbol,
-                    interval=interval,
-                    start_str=start_str,
-                    end_str=end_str,
-                    limit=limit,
-                )
-                if isinstance(data, list) and len(data) > 0:
-                    return data
-            except Exception as e:  # noqa: BLE001
-                error_msg = str(e)
-                if "APIError(code=-2015)" in error_msg:
-                    logger.error(f"Erro de permissão para {symbol}")
-                    raise PermissionError(
-                        f"Failed to retrieve historical klines for {symbol}, user doesn't have permission to do this request."
-                    )
-                if (
-                    "APIError(code=-1100)" in error_msg
-                    or "APIError(code=-1121)" in error_msg
-                ):
-                    logger.error("Parâmetro inválido em k-lines históricas")
-                    raise KeyError(
-                        "Failed to retrieve historical klines, invalid parameter provided."
-                    )
-                logger.warning(
-                    f"[Tentativa {attempt + 1}/{self.MAX_RETRIES}] {error_msg}"
-                )
-                if attempt < self.MAX_RETRIES - 1:
-                    time.sleep(self.RETRY_DELAY)
-
-        logger.error(f"Falha ao obter k-lines históricas para {symbol}")
-        return []
+        return call_with_retry(
+            lambda: self.client.get_historical_klines(
+                symbol=symbol,
+                interval=interval,
+                start_str=start_str,
+                end_str=end_str,
+                limit=limit,
+            ),
+            retries=self.MAX_RETRIES,
+            delay=self.RETRY_DELAY,
+            context=f"k-lines históricas de {symbol}",
+            validate=lambda data: isinstance(data, list) and len(data) > 0,
+            empty=[],
+        )
 
     def get_historical_klines_generator(
         self, symbol: str, interval: str, timestamp: str
     ) -> Iterator[list]:
-        """Fetch historical klines efficiently via the generator API.
+        """Stream historical klines with retry that covers the iteration.
 
-        Efficient for large volumes of data.
+        On a transient failure mid-stream, the generator is recreated from
+        the last kline already yielded (open_time + 1ms), so no rows are
+        duplicated or lost. The retry budget resets whenever progress is
+        made.
 
         Args:
             symbol: Trading pair (e.g., 'BTCUSDT').
             interval: Candlestick interval (e.g., '1h', '1d').
             timestamp: Start date (e.g., '100 days ago UTC').
 
-        Returns:
-            List of kline rows, or an empty list after exhausting all retries.
+        Yields:
+            Raw kline rows.
 
         Raises:
-            PermissionError: If the API key lacks permission for this request.
-            KeyError: If an invalid parameter is provided.
+            BinanceUnauthorizedError: If the API key lacks permission.
+            BinanceInvalidSymbolError: If an invalid parameter is provided.
         """
-        for attempt in range(self.MAX_RETRIES):
+        context = f"generator de k-lines históricas de {symbol}"
+        start: str | int = timestamp
+        failures = 0
+        while True:
             try:
-                return self.client.get_historical_klines_generator(
-                    symbol=symbol, interval=interval, start_str=timestamp
-                )
-            except Exception as e:  # noqa: BLE001
-                error_msg = str(e)
-                if "APIError(code=-2015)" in error_msg:
-                    logger.error(f"Erro de permissão para {symbol}")
-                    raise PermissionError(
-                        f"Failed to retrieve historical klines generator for {symbol}, user doesn't have permission to do this request."
-                    )
-                if (
-                    "APIError(code=-1100)" in error_msg
-                    or "APIError(code=-1121)" in error_msg
+                for row in self.client.get_historical_klines_generator(
+                    symbol=symbol, interval=interval, start_str=start
                 ):
-                    logger.error("Parâmetro inválido em generator de k-lines")
-                    raise KeyError(
-                        "Failed to retrieve historical klines generator, invalid parameter provided."
-                    )
+                    failures = 0
+                    start = row[0] + 1
+                    yield row
+                return
+            except Exception as error:  # noqa: BLE001
+                _raise_if_fatal(error, context)
+                failures += 1
+                if failures >= self.MAX_RETRIES:
+                    logger.error("Falha após %s tentativas: %s", failures, context)
+                    return
                 logger.warning(
-                    f"[Tentativa {attempt + 1}/{self.MAX_RETRIES}] {error_msg}"
+                    "[Tentativa %s/%s] %s: %s",
+                    failures,
+                    self.MAX_RETRIES,
+                    context,
+                    error,
                 )
-                if attempt < self.MAX_RETRIES - 1:
-                    time.sleep(self.RETRY_DELAY)
-
-        logger.error(f"Falha ao gerar k-lines históricas para {symbol}")
-        return []
+                time.sleep(self.RETRY_DELAY)

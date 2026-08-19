@@ -49,14 +49,5 @@ class TransformRegistry:
             )
         return transform_function
 
-    def register(self, name: str, func: Callable) -> None:
-        """Register a new transformation function.
-
-        Args:
-            name: Name under which the function will be stored (case-insensitive).
-            func: The callable transformation function.
-        """
-        self._transforms[name.lower()] = func
-
 
 registry = TransformRegistry()
