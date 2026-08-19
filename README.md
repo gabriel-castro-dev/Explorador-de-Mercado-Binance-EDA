@@ -216,7 +216,15 @@ uv run python jobs.py daily          # klines 15m/1h/1d
 uv run python -m app.feature_engineering.main   # features + retenção
 ```
 
-> A API FastAPI está em construção — quando existir, esta seção ganhará o `uvicorn` e o link do Swagger.
+### 5. Rodando a API localmente (em construção — próximo passo)
+
+Quando os `controllers/` forem implementados:
+
+```bash
+uv run uvicorn app.main:app --reload
+```
+
+Documentação interativa (Swagger): http://127.0.0.1:8000/docs
 
 # Licença
 
