@@ -14,7 +14,29 @@ def create_app() -> FastAPI:
     settings = get_settings()
     if not settings.SUPABASE_PUBLISHABLE_KEY:
         raise RuntimeError("SUPABASE_PUBLISHABLE_KEY is required to run the API")
-    application = FastAPI(title="Crypto Forecasting API", version=settings.API_VERSION)
+    application = FastAPI(
+        title="Crypto Forecasting API",
+        version=settings.API_VERSION,
+        description=(
+            "API de dados de mercado cripto: candles OHLCV, indicadores técnicos "
+            "calculados e snapshots 24h dos top 20 ativos por volume da Binance. "
+            "**Auth**: envie `Authorization: Bearer <access_token>` do Supabase Auth "
+            "em todas as rotas `/api/v1/*`. O token é validado localmente (JWKS) e as "
+            "consultas rodam sob o RLS do usuário. Obtenha um token autenticando no "
+            "Supabase Auth (`POST {SUPABASE_URL}/auth/v1/token?grant_type=password`)."
+        ),
+        openapi_tags=[
+            {"name": "health", "description": "Liveness da API (público)."},
+            {"name": "symbols", "description": "Ativos rastreados pela plataforma."},
+            {"name": "klines", "description": "Candles OHLCV por timeframe (15m, 1h, 1d)."},
+            {
+                "name": "features",
+                "description": "Indicadores técnicos calculados (SMA, EMA, RSI, MACD, "
+                "Bollinger, ATR...). `24h` é sinônimo de `1d`.",
+            },
+            {"name": "tickers", "description": "Snapshot 24h mais recente por ativo."},
+        ],
+    )
     application.add_middleware(
         CORSMiddleware,
         allow_origins=[
