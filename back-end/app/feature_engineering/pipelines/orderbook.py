@@ -3,6 +3,7 @@
 import logging
 
 import pandas as pd
+
 from app.feature_engineering.pipelines.base import BasePipeline
 from app.feature_engineering.transforms.technical_indicators import (
     TechnicalIndicatorsTransform,
@@ -18,9 +19,7 @@ class OrderbookPipeline(BasePipeline):
 
     _FREQUENCIES: dict[str, str] = {"15m": "15min", "1h": "1h", "24h": "1D"}
 
-    def __init__(
-        self, tickers_repo: TickersRepository, features_repo: FeaturesRepository
-    ) -> None:
+    def __init__(self, tickers_repo: TickersRepository, features_repo: FeaturesRepository) -> None:
         super().__init__()
         self.tickers_repo = tickers_repo
         self.features_repo = features_repo
@@ -46,20 +45,16 @@ class OrderbookPipeline(BasePipeline):
                 bid_qty=("bid_qty", "mean"),
                 ask_qty=("ask_qty", "mean"),
             )
-            aggregated["bid_ask_spread"] = (
-                TechnicalIndicatorsTransform.calculate_bid_ask_spread(aggregated)
+            aggregated["bid_ask_spread"] = TechnicalIndicatorsTransform.calculate_bid_ask_spread(
+                aggregated
             )
-            aggregated["order_imbalance"] = (
-                TechnicalIndicatorsTransform.calculate_order_imbalance(aggregated)
+            aggregated["order_imbalance"] = TechnicalIndicatorsTransform.calculate_order_imbalance(
+                aggregated
             )
             self.features_repo.save_features(
                 timeframe,
-                aggregated[
-                    ["symbol", "timestamp", "bid_ask_spread", "order_imbalance"]
-                ],
+                aggregated[["symbol", "timestamp", "bid_ask_spread", "order_imbalance"]],
             )
         except Exception:
-            logger.exception(
-                "Falha no pipeline orderbook para timeframe %s.", timeframe
-            )
+            logger.exception("Falha no pipeline orderbook para timeframe %s.", timeframe)
             raise

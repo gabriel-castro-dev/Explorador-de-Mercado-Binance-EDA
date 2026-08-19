@@ -5,10 +5,10 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 from app.feature_engineering.pipelines.klines_pipeline import KlinesPipeline
-from config import setup_logging
 from app.repositories.features_repository import FeaturesRepository
 from app.repositories.klines_repository import KlinesRepository
 from app.services.binance_market_data_service import BinanceMarketService
+from config import setup_logging
 
 logger = logging.getLogger(__name__)
 _START_DAYS = {"15m": 182, "1h": 739, "1d": 930}
@@ -33,9 +33,7 @@ def run(
         start_str = start_time.strftime("%Y-%m-%d %H:%M:%S UTC")
         current_symbol = "<inicialização>"
         try:
-            for current_symbol, batch in market_service.iter_historical_klines(
-                interval, start_str
-            ):
+            for current_symbol, batch in market_service.iter_historical_klines(interval, start_str):
                 klines_repo.upsert_klines(interval, batch)
             pipeline.run(_FEATURE_TIMEFRAMES[interval])
         except Exception:

@@ -3,6 +3,7 @@
 import logging
 
 import pandas as pd
+
 from app.feature_engineering.pipelines.base import BasePipeline
 from app.feature_engineering.transforms.technical_indicators import (
     TechnicalIndicatorsTransform,
@@ -16,9 +17,7 @@ logger = logging.getLogger(__name__)
 class Ticker24hrPipeline(BasePipeline):
     """Persist daily price and volume context from 24-hour ticker snapshots."""
 
-    def __init__(
-        self, tickers_repo: TickersRepository, features_repo: FeaturesRepository
-    ) -> None:
+    def __init__(self, tickers_repo: TickersRepository, features_repo: FeaturesRepository) -> None:
         super().__init__()
         self.tickers_repo = tickers_repo
         self.features_repo = features_repo
@@ -42,16 +41,12 @@ class Ticker24hrPipeline(BasePipeline):
                 )
                 .sort_values(["symbol", "timestamp"])
             )
-            daily["volume_change_24h"] = (
-                TechnicalIndicatorsTransform.calculate_change_percent(
-                    daily, column="volume", period=1
-                )
+            daily["volume_change_24h"] = TechnicalIndicatorsTransform.calculate_change_percent(
+                daily, column="volume", period=1
             )
             self.features_repo.save_features(
                 "24h",
-                daily[
-                    ["symbol", "timestamp", "price_change_percent", "volume_change_24h"]
-                ],
+                daily[["symbol", "timestamp", "price_change_percent", "volume_change_24h"]],
             )
         except Exception:
             logger.exception("Falha no pipeline ticker_24hr.")

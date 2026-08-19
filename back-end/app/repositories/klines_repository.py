@@ -3,6 +3,7 @@
 import logging
 
 import pandas as pd
+
 from app.repositories.base import BaseRepository
 
 logger = logging.getLogger(__name__)
@@ -84,14 +85,10 @@ class KlinesRepository(BaseRepository):
             "volume",
         } - set(prepared.columns)
         if missing:
-            raise ValueError(
-                f"Klines sem colunas obrigatórias: {', '.join(sorted(missing))}."
-            )
+            raise ValueError(f"Klines sem colunas obrigatórias: {', '.join(sorted(missing))}.")
         for column in ("open_time", "close_time"):
             if column in prepared.columns:
-                prepared[column] = pd.to_datetime(
-                    prepared[column], errors="coerce", utc=True
-                )
+                prepared[column] = pd.to_datetime(prepared[column], errors="coerce", utc=True)
         for column in self._NUMERIC_COLUMNS:
             if column in prepared.columns:
                 prepared[column] = pd.to_numeric(prepared[column], errors="coerce")
