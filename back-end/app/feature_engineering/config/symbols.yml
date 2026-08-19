@@ -1,10 +1,13 @@
 # Fixed universe of tracked trading pairs.
 #
-# Snapshot of the top-20 USDT pairs by 24h quote volume, taken from
-# ticker_24hr_history on 2026-08-19. Freezing the list keeps the ML dataset
-# stable: symbols no longer rotate in/out of the daily jobs, so the series
-# have no gaps. Symbols listed on Binance after the backfill horizon simply
-# start at their listing date.
+# Snapshot of the top-20 USDT pairs on the REAL Binance exchange by 24h
+# quote volume, taken on 2026-08-19 after the testnet -> real-data
+# migration. Stablecoin-quoted-in-USDT pairs (USDC, FDUSD, USD1, RLUSD…)
+# are excluded: a pegged pair has nothing to forecast.
+#
+# Freezing the list keeps the ML dataset stable: symbols no longer rotate
+# in/out of the daily jobs, so the series have no gaps. Symbols listed on
+# Binance after the backfill horizon simply start at their listing date.
 #
 # Editing this list changes what the daily jobs ingest AND what the backfill
 # targets. Removing a symbol stops new data; its history stays until cleaned.
@@ -13,20 +16,20 @@ symbols:
   - BTCUSDT
   - ETHUSDT
   - SOLUSDT
-  - LINKUSDT
-  - PAXGUSDT
-  - TRXUSDT
-  - ADAUSDT
-  - SNXXBUSDT
-  - DOGEUSDT
-  - BNBUSDT
-  - MVLLBUSDT
-  - XRPUSDT
-  - AVAXUSDT
   - ZECUSDT
-  - OPNUSDT
-  - PORTALUSDT
-  - ATOMUSDT
-  - HEMIUSDT
-  - AXTIBUSDT
+  - XRPUSDT
+  - ALLOUSDT
+  - BNBUSDT
+  - SNDKBUSDT
+  - XAUTUSDT
+  - DOGEUSDT
+  - REUSDT
+  - ACEUSDT
+  - LINKUSDT
+  - UUSDT
   - PLUMEUSDT
+  - SKHYBUSDT
+  - PAXGUSDT
+  - SUIUSDT
+  - WLDUSDT
+  - HEMIUSDT

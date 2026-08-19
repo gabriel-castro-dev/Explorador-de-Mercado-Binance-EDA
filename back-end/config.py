@@ -29,7 +29,10 @@ class Settings(BaseSettings):
     SUPABASE_KEY: str
     BINANCE_API_KEY: str
     BINANCE_API_SECRET: str
-    USE_TESTNET: bool = True
+    # Real Binance by default: market-data endpoints are public and the ML
+    # dataset needs real prices/volumes (the testnet keeps ~2 weeks of
+    # synthetic history only). Set USE_TESTNET=true explicitly for testnet.
+    USE_TESTNET: bool = False
     BINANCE_PROXY: Optional[str] = None
 
     # --- API (FastAPI) ---
