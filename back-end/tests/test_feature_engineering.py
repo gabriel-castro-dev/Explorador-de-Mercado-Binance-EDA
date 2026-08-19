@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 import unittest
 from datetime import datetime, timezone
@@ -11,6 +12,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import historical_charge
+from config import get_settings
 from app.feature_engineering.pipelines.klines_pipeline import KlinesPipeline
 from app.feature_engineering.transforms.technical_indicators import (
     TechnicalIndicatorsTransform,
@@ -93,11 +95,11 @@ class FeaturesRepositoryTests(unittest.TestCase):
         json.dumps(records, allow_nan=False)
 
     def test_upsert_is_split_into_500_row_batches(self):
-        repository = FeaturesRepository.__new__(FeaturesRepository)
         builder = MagicMock()
         builder.upsert.return_value = builder
-        repository.supabase = MagicMock()
-        repository.supabase.table.return_value = builder
+        supabase = MagicMock()
+        supabase.table.return_value = builder
+        repository = FeaturesRepository(supabase=supabase)
         df = pd.DataFrame(
             {
                 "symbol": ["BTCUSDT"] * 1001,
@@ -185,6 +187,28 @@ class HistoricalServiceTests(unittest.TestCase):
         df = BinanceMarketService._historical_rows_to_frame([row])
         self.assertTrue(isinstance(df["Open_Time"].dtype, pd.DatetimeTZDtype))
         self.assertEqual(df.iloc[0]["symbol"], "BTCUSDT")
+
+
+class SettingsTests(unittest.TestCase):
+    _ENV = {
+        "SUPABASE_URL": "http://localhost",
+        "SUPABASE_KEY": "test-key",
+        "BINANCE_API_KEY": "test-key",
+        "BINANCE_API_SECRET": "test-secret",
+    }
+
+    def setUp(self):
+        get_settings.cache_clear()
+
+    def tearDown(self):
+        get_settings.cache_clear()
+
+    def test_get_settings_is_cached(self):
+        with patch.dict(os.environ, self._ENV):
+            first = get_settings()
+            second = get_settings()
+        self.assertIs(first, second)
+        self.assertEqual(first.SUPABASE_KEY, "test-key")
 
 
 if __name__ == "__main__":

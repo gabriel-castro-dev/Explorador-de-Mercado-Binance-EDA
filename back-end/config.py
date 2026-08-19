@@ -1,4 +1,5 @@
 import logging
+from functools import lru_cache
 from typing import Optional
 
 from pydantic import field_validator
@@ -53,18 +54,26 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 
+@lru_cache
+def get_settings() -> Settings:
+    """Build (once) and return the application settings.
+
+    Lazy construction keeps imports side-effect free: environment
+    variables are only required when a component actually needs them.
+    """
+    return Settings()
+
+
 def setup_logging():
-    """Configure the root logger with stream and file handlers.
+    """Configure the root logger with a stream handler.
 
     Initializes logging with the level, format, and date format defined
-    in the global settings.
+    in the application settings.
     """
+    settings = get_settings()
     logging.basicConfig(
         level=settings.LOG_LEVEL,
         format=settings.LOG_FORMAT,
         datefmt=settings.LOG_DATE_FORMAT,
-        handlers=[logging.StreamHandler(), logging.FileHandler("app.log", mode="a")],
+        handlers=[logging.StreamHandler()],
     )
-
-
-settings = Settings()
