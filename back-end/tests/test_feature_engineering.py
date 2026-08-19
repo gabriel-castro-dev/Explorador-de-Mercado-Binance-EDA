@@ -447,3 +447,50 @@ class RetryHelperTests(unittest.TestCase):
             sleep=MagicMock(),
         )
         self.assertEqual(result, [7])
+
+
+class GetKlinesNormalizationTests(unittest.TestCase):
+    _RAW_KLINE = [
+        1767225600000,
+        "50000.1",
+        "50100.2",
+        "49900.3",
+        "50050.4",
+        "12.5",
+        1767226499999,
+        "625000.0",
+        42,
+        "6.25",
+        "312500.0",
+        "0",
+    ]
+
+    def test_get_klines_uses_single_normalizer_contract(self):
+        client = MagicMock()
+        client.get_klines.return_value = [self._RAW_KLINE]
+        service = BinanceMarketService(client=client)
+        with patch.object(
+            service,
+            "get_top_20_tickers",
+            return_value=pd.DataFrame({"symbol": ["BTCUSDT"]}),
+        ):
+            df = service.get_klines("1h")
+        self.assertEqual(len(df), 1)
+        expected_columns = {
+            "Open_Time",
+            "Open",
+            "High",
+            "Low",
+            "Close",
+            "Volume",
+            "Close_Time",
+            "Quote_Asset_Volume",
+            "Number_of_Trades",
+            "Taker_Buy_Base_Asset_Volume",
+            "Taker_Buy_Quote_Asset_Volume",
+            "symbol",
+        }
+        self.assertEqual(set(df.columns), expected_columns)
+        self.assertIsNotNone(df["Open_Time"].dt.tz)
+        self.assertEqual(str(df["Number_of_Trades"].dtype), "Int64")
+        self.assertEqual(df["symbol"].iloc[0], "BTCUSDT")
