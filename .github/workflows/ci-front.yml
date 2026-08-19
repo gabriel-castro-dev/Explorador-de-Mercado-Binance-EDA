@@ -1,0 +1,88 @@
+name: CI front-end
+
+on:
+  pull_request:
+    paths:
+      - "front-end/**"
+      - "back-end/app/**"
+      - "back-end/scripts/export_openapi.py"
+      - ".github/workflows/ci-front.yml"
+  push:
+    branches: [main]
+    paths:
+      - "front-end/**"
+      - "back-end/app/**"
+      - "back-end/scripts/export_openapi.py"
+      - ".github/workflows/ci-front.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-front-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Placeholders de build: a SPA só precisa deles em runtime no navegador.
+  NUXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+  NUXT_PUBLIC_SUPABASE_KEY: sb_publishable_ci_placeholder
+  NUXT_PUBLIC_API_BASE: http://localhost:8000
+
+jobs:
+  front:
+    name: Lint · typecheck · tests · generate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: front-end
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6 # versão lida de packageManager (package.json)
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: front-end/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm generate
+      - uses: actions/upload-artifact@v7
+        with:
+          name: front-end-static
+          path: front-end/.output/public
+          retention-days: 7
+
+  openapi-types:
+    name: Tipos da API em dia com o back-end
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: "back-end/uv.lock"
+      - name: Sync back-end deps
+        working-directory: back-end
+        run: uv sync --frozen
+      - name: Export OpenAPI schema
+        working-directory: back-end
+        run: uv run python scripts/export_openapi.py ../front-end/openapi/openapi.json
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: front-end/pnpm-lock.yaml
+      - name: Install front-end deps
+        working-directory: front-end
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Regenerate types and fail on drift
+        working-directory: front-end
+        run: |
+          pnpm api:types
+          git diff --exit-code -- openapi/openapi.json app/types/openapi.d.ts \
+            || { echo "::error::openapi.json / openapi.d.ts desatualizados. Rode: cd back-end && uv run python scripts/export_openapi.py ../front-end/openapi/openapi.json && cd ../front-end && pnpm api:types"; exit 1; }

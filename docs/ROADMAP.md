@@ -2,9 +2,11 @@
 
 Quatro marcos **independentes** (qualquer ordem). Cada um será detalhado em plan mode na sua hora — isto é o overview do que o agente deve buscar: segurança, stack clara, arquitetura limpa. Antes de cada marco: ler `AGENTS.md` e as convenções em `docs/agents/`.
 
-## 1. Front-end (dashboard)
+## 1. Front-end (dashboard) — ✅ v1 implementada (2026-08-19, branch `feat/front-end`)
 
-**Stack decidida:** Vue 3 + Nuxt + Tailwind CSS, em `front-end/` na raiz do monorepo. Auth via `supabase-js` direto no Supabase Auth (login, signup, reset de senha, refresh de sessão); a API é consumida com o access token em `Authorization: Bearer`.
+Entregue: `front-end/` com auth completa, dashboard (candles + indicadores + resumo 24h), `/mercado`, estados, CI (`ci-front.yml`), ADRs 0001–0003 e `CONTEXT.md`. Pendências desta fase: smoke contra a API real com usuário de teste; decisão de hospedagem (marco 4); configurar Redirect URLs no Supabase Dashboard.
+
+**Stack decidida:** Vue 3 + Nuxt 4 + Nuxt UI v4 (Tailwind v4) + Lightweight Charts v5, em `front-end/` na raiz do monorepo. Auth via `supabase-js` direto no Supabase Auth (login, signup, reset de senha, refresh de sessão); a API é consumida com o access token em `Authorization: Bearer`.
 
 **Escopo:** telas de login/cadastro; dashboard com seletor de ativos (`/symbols`), gráfico de candles (`/klines`), overlay de indicadores (`/features`), tabela-resumo 24h (`/tickers/24h`).
 

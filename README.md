@@ -42,7 +42,7 @@ Usuário
 | **Banco de Dados** | Supabase | PostgreSQL persistente com RLS para séries históricas, indicadores, previsões e versionamento de modelos. | Supabase Cloud | Em produção |
 | **Back-end (API)** | FastAPI | Endpoints REST (klines, features, symbols, tickers 24h), autenticação via Supabase Auth (JWT/JWKS + RLS), Swagger. | VM | Em desenvolvimento (v1 pronta; deploy pendente) |
 | **Machine Learning** | Scikit-Learn / Prophet (a definir) | Scripts de treinamento e geração de projeções diárias de preços. | GitHub Actions / Runner | Planejado |
-| **Front-end** | Vue 3 + Nuxt + Tailwind | Dashboard interativo para comparação de ativos, gráficos temporais e performance dos modelos. | Domínio grátis da VM Hostinger ou Vercel (a definir) | Planejado |
+| **Front-end** | Vue 3 + Nuxt 4 + Nuxt UI (Tailwind v4) + Lightweight Charts | Dashboard SPA: login/cadastro (Supabase Auth), gráfico de candles com indicadores, resumo 24h e tabela de mercado; consome a API com Bearer token. | Estático — Caddy na VM Hostinger ou Vercel (a definir) | Em desenvolvimento (v1 funcional; deploy pendente) |
 
 ---
 
@@ -52,8 +52,8 @@ Usuário
 * **Gerenciador de Pacotes Python:** `uv` (Fast Python package installer & resolver)
 * **Validação de Ambiente:** Pydantic Settings (carregamento lazy via `get_settings()` — imports sem side effects)
 * **Arquitetura do Código (Back-end):** Clean Architecture / camadas (`clients`, `services`, `ingestion`, `repositories`, `feature_engineering`; `controllers` chegam com a API)
-* **Front-end (planejado):** Vue 3, Nuxt e Tailwind CSS
-* **Autenticação (planejada):** Controle de acesso à API e ao dashboard via Supabase Auth + RLS
+* **Front-end:** Vue 3 + Nuxt 4 (SPA estática, `ssr: false`), Nuxt UI v4 / Tailwind v4, TradingView Lightweight Charts v5, `@nuxtjs/supabase`, `openapi-fetch` com tipos gerados do OpenAPI (`pnpm api:types`), Vitest + ESLint + vue-tsc
+* **Autenticação:** Supabase Auth no front (supabase-js gerencia a sessão) → `Authorization: Bearer` na API → JWT validado via JWKS → RLS no banco
 * **Design Patterns:** Retry Pattern centralizado (`call_with_retry` com erros tipados) e Injeção de Dependências (seams para testes offline e para o `Depends()` do FastAPI)
 * **Qualidade:** `pytest` (suíte 100% offline, sem `.env`) + `ruff` (lint e format) no CI
 
@@ -77,7 +77,8 @@ Usuário
 * **Documentação Viva:** Swagger e OpenAPI gerados dinamicamente para consumo facilitado.
 
 ### CI/CD
-* **CI:** `pytest` + `ruff` em todo PR/push à main; smoke build das imagens Docker quando Dockerfiles/dependências mudam.
+* **CI (back-end):** `pytest` + `ruff` em todo PR/push à main; smoke build das imagens Docker quando Dockerfiles/dependências mudam.
+* **CI (front-end):** `ci-front.yml` — ESLint, `nuxt typecheck`, Vitest e `nuxt generate` (artefato estático); job `openapi-types` reexporta o OpenAPI do back-end e falha se `front-end/openapi/openapi.json` / `app/types/openapi.d.ts` estiverem desatualizados.
 * **CD:** Push na main publica as imagens no GHCR (`crypto-jobs`, `crypto-feature-engineering`); os crons de coleta apenas fazem `docker pull` da imagem pronta.
 
 ---
@@ -168,12 +169,27 @@ crypto-forecasting-app/
 │   ├── Dockerfile.jobs              # Imagem dos jobs de coleta
 │   ├── Dockerfile.feature-engineering
 │   └── pyproject.toml               # Dependências via uv
-├── docs/agents/                     # Convenções para agentes (issue tracker, labels, domínio)
-├── front-end/                       # Dashboard (Vue/Nuxt) — planejado
+├── docs/
+│   ├── agents/                      # Convenções para agentes (issue tracker, labels, domínio)
+│   └── adr/                         # Decisões de arquitetura (ADRs)
+├── CONTEXT.md                       # Glossário do domínio (timeframe, kline, feature, warm-up…)
+├── front-end/                       # Dashboard Nuxt 4 (SPA estática)
+│   ├── app/
+│   │   ├── pages/                   # login, signup, confirm-email, confirm, forgot/reset-password, index (dashboard), mercado
+│   │   ├── layouts/                 # auth (card) · default (header, nav, barra inferior mobile)
+│   │   ├── components/              # SymbolSelector, TimeframeToggle, SnapshotBadge, chart/*, IndicatorToggles, Summary24hStrip, Tickers24hTable…
+│   │   ├── composables/             # useApi (Bearer + 401→refresh→retry), useMarketData, useDashboardQuery, useIndicatorPrefs, useFreshness, useAuthActions
+│   │   ├── utils/                   # formatação pt-BR/UTC, erros da API, mapping para o gráfico, tickers, constantes dos indicadores
+│   │   ├── types/                   # openapi.d.ts (GERADO) + aliases
+│   │   ├── middleware/ · plugins/   # guest; captura do hash de auth
+│   │   └── assets/css/main.css      # tokens de design (light/dark)
+│   ├── openapi/openapi.json         # schema exportado do back-end (input do codegen)
+│   ├── test/unit/                   # Vitest (utils, cliente da API)
+│   └── nuxt.config.ts · package.json · .env.example
 └── ml_models/                       # Modelos preditivos e métricas — planejado
 ```
 
-> `front-end/` e `ml_models/` ainda não existem no repo — são os próximos marcos.
+> `ml_models/` ainda não existe no repo — é o próximo marco.
 
 ## Instalação & Setup de Desenvolvimento
 
@@ -241,6 +257,33 @@ o banco com o token do usuário — o RLS decide as linhas. Recomendado ativar s
 keys assimétricas: Dashboard → Settings → JWT Signing Keys → "Migrate JWT secret" →
 "Rotate keys" (revogar o secret legado ~1h depois).
 
+### 6. Rodando o front-end (dashboard)
+
+Pré-requisitos: Node 24 LTS + pnpm (`npm i -g pnpm`).
+
+```bash
+cd front-end
+cp .env.example .env      # NUXT_PUBLIC_SUPABASE_URL, NUXT_PUBLIC_SUPABASE_KEY (publishable!), NUXT_PUBLIC_API_BASE
+pnpm install
+pnpm dev                  # http://localhost:3000 (a API precisa estar em NUXT_PUBLIC_API_BASE e liberar essa origem em API_CORS_ORIGINS)
+```
+
+Qualidade e build:
+
+```bash
+pnpm lint && pnpm typecheck && pnpm test   # ESLint · vue-tsc · Vitest
+pnpm generate                              # SPA estática em .output/public (servir com fallback para index.html/200.html)
+```
+
+Tipos da API são gerados do OpenAPI do back-end e commitados (o CI falha se ficarem para trás):
+
+```bash
+cd back-end && uv run python scripts/export_openapi.py ../front-end/openapi/openapi.json
+cd ../front-end && pnpm api:types
+```
+
+Supabase Dashboard (Authentication → URL Configuration): adicionar `http://localhost:3000/**` e a origem de produção em **Redirect URLs** (links de confirmação de e-mail e de redefinição de senha voltam para `/confirm` e `/reset-password`).
+
 ---
 
 ## Referência da API (v1)
@@ -258,7 +301,7 @@ Documentação interativa completa: `/docs` (Swagger) e `/redoc` com a API rodan
 
 ### Obtendo um access token sem o front-end
 
-Enquanto o dashboard Nuxt não existe, autentique um usuário de teste direto no Supabase Auth:
+Para testar a API sem o dashboard (curl/Swagger), autentique um usuário direto no Supabase Auth:
 
 ```bash
 curl -s -X POST "https://<projeto>.supabase.co/auth/v1/token?grant_type=password" \
