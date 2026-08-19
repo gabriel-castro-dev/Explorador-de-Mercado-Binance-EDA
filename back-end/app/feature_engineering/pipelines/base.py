@@ -7,6 +7,7 @@ from typing import Any
 
 import pandas as pd
 import yaml
+
 from app.feature_engineering.transforms.registry import registry
 
 logger = logging.getLogger(__name__)
@@ -52,9 +53,7 @@ class BasePipeline:
         try:
             transforms = self.config[feature_group]
         except KeyError as error:
-            raise ValueError(
-                f"Grupo de features não configurado: {feature_group!r}."
-            ) from error
+            raise ValueError(f"Grupo de features não configurado: {feature_group!r}.") from error
         if not isinstance(transforms, list):
             raise ValueError(f"Grupo de features inválido: {feature_group!r}.")
 
@@ -62,9 +61,7 @@ class BasePipeline:
         for transform in transforms:
             name, params = self._parse_transform(transform)
             if not self._has_required_columns(result, name):
-                logger.warning(
-                    "Transformação %s ignorada: colunas de origem ausentes.", name
-                )
+                logger.warning("Transformação %s ignorada: colunas de origem ausentes.", name)
                 continue
             values = registry.get(name)(result, **params)
             self._add_feature_columns(result, name, params, values)
@@ -133,9 +130,7 @@ class BasePipeline:
         elif name == "avg_price_deviation":
             df[f"avg_price_deviation_sma{period}"] = values
         elif name == "change_percent":
-            df["price_change_percent" if column == "close" else "volume_change_24h"] = (
-                values
-            )
+            df["price_change_percent" if column == "close" else "volume_change_24h"] = values
         elif name == "sma" and column == "volume":
             df[f"volume_sma_{period}"] = values
         elif period is not None:

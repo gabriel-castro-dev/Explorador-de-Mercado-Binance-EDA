@@ -4,6 +4,7 @@ from collections.abc import Callable, Iterator
 from typing import Optional
 
 from binance.client import Client
+
 from config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -32,8 +33,7 @@ def _raise_if_fatal(error: Exception, context: str) -> None:
     if "APIError(code=-2015)" in error_msg:
         logger.error("Erro de permissão: %s", context)
         raise BinanceUnauthorizedError(
-            f"Failed request ({context}): "
-            "user doesn't have permission to do this request."
+            f"Failed request ({context}): user doesn't have permission to do this request."
         )
     if "APIError(code=-1100)" in error_msg or "APIError(code=-1121)" in error_msg:
         logger.error("Símbolo/parâmetro inválido: %s", context)
@@ -77,14 +77,11 @@ def call_with_retry(
                 return data
         except Exception as error:  # noqa: BLE001
             _raise_if_fatal(error, context)
-            logger.warning(
-                "[Tentativa %s/%s] %s: %s", attempt + 1, retries, context, error
-            )
+            logger.warning("[Tentativa %s/%s] %s: %s", attempt + 1, retries, context, error)
         if attempt < retries - 1:
             sleep(delay)
     logger.error("Falha após %s tentativas: %s", retries, context)
     return empty
-
 
 
 class BinanceClient:
@@ -134,9 +131,7 @@ class BinanceClient:
             logger.info("BinanceClient inicializado com sucesso")
         except Exception as e:  # noqa: BLE001
             logger.error(f"Falha crítica ao conectar na API: {e}")
-            raise RuntimeError(
-                f"Falha crítica: Não foi possível conectar à API. Erro: {e}"
-            )
+            raise RuntimeError(f"Falha crítica: Não foi possível conectar à API. Erro: {e}")
 
     def ping(self) -> bool:
         """Check connectivity with the Binance API.
@@ -309,7 +304,11 @@ class BinanceClient:
         )
 
     def get_historical_klines_generator(
-        self, symbol: str, interval: str, start_str: Optional[str] = None, end_str: Optional[str] = None # noqa: UP045
+        self,
+        symbol: str,
+        interval: str,
+        start_str: Optional[str] = None,
+        end_str: Optional[str] = None,  # noqa: UP045
     ) -> Iterator[list]:
         """Stream historical klines with retry that covers the iteration.
 
@@ -321,7 +320,8 @@ class BinanceClient:
         Args:
             symbol: Trading pair (e.g., 'BTCUSDT').
             interval: Candlestick interval (e.g., '1h', '1d').
-            timestamp: Start date (e.g., '100 days ago UTC').
+            start_str: Start date (e.g., '100 days ago UTC').
+            end_str: Optional end date.
 
         Yields:
             Raw kline rows.
@@ -331,12 +331,12 @@ class BinanceClient:
             BinanceInvalidSymbolError: If an invalid parameter is provided.
         """
         context = f"generator de k-lines históricas de {symbol}"
-        start: str | int =  start_str
+        start: str | int = start_str
         failures = 0
         while True:
             try:
                 for row in self.client.get_historical_klines_generator(
-                    symbol=symbol, interval=interval, start_str=start_str, end_str=end_str
+                    symbol=symbol, interval=interval, start_str=start, end_str=end_str
                 ):
                     failures = 0
                     start = row[0] + 1

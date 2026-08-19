@@ -44,9 +44,7 @@ class KlinesPipeline(BasePipeline):
         "volume_sma_20",
     )
 
-    def __init__(
-        self, klines_repo: KlinesRepository, features_repo: FeaturesRepository
-    ) -> None:
+    def __init__(self, klines_repo: KlinesRepository, features_repo: FeaturesRepository) -> None:
         """Initialize the pipeline with data access dependencies.
 
         Args:
@@ -71,17 +69,15 @@ class KlinesPipeline(BasePipeline):
         except KeyError as error:
             raise ValueError(f"Timeframe não suportado: {timeframe!r}.") from error
         try:
-            candles = self.klines_repo.get_latest_klines(
-                "1d" if timeframe == "24h" else timeframe
-            )
+            candles = self.klines_repo.get_latest_klines("1d" if timeframe == "24h" else timeframe)
             if candles.empty:
                 logger.warning("Nenhum candle encontrado para timeframe %s.", timeframe)
                 return
             processed = self.apply_transforms(candles, feature_group)
             macd_line = processed["ema_12"] - processed["ema_26"]
-            processed["macd_signal"] = macd_line.groupby(
-                processed["symbol"], sort=False
-            ).transform(TechnicalIndicatorsTransform.calculate_macd_signal)
+            processed["macd_signal"] = macd_line.groupby(processed["symbol"], sort=False).transform(
+                TechnicalIndicatorsTransform.calculate_macd_signal
+            )
             if "open_time" not in processed.columns:
                 raise ValueError("Candles devem conter a coluna 'open_time'.")
             processed = processed.rename(columns={"open_time": "timestamp"})
@@ -89,7 +85,5 @@ class KlinesPipeline(BasePipeline):
                 timeframe, processed.reindex(columns=self._DESTINATION_COLUMNS)
             )
         except Exception:
-            logger.exception(
-                "Falha no pipeline de klines para timeframe %s.", timeframe
-            )
+            logger.exception("Falha no pipeline de klines para timeframe %s.", timeframe)
             raise

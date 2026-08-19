@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from config import setup_logging
+
 from app.feature_engineering.pipelines.klines_pipeline import KlinesPipeline
 from app.feature_engineering.pipelines.orderbook import OrderbookPipeline
 from app.feature_engineering.pipelines.ticker_24hr import Ticker24hrPipeline
@@ -14,6 +14,7 @@ from app.repositories.features_repository import FeaturesRepository
 from app.repositories.klines_repository import KlinesRepository
 from app.repositories.retention_repository import RetentionRepository
 from app.repositories.tickers_repository import TickersRepository
+from config import setup_logging
 
 logger = logging.getLogger(__name__)
 _CONFIG_PATH = Path(__file__).resolve().parent / "config" / "features.yml"
