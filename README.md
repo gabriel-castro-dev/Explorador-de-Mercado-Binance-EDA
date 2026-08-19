@@ -1,23 +1,25 @@
 # Plataforma de Engenharia de Dados, ML & Visualização - Mercado Binance
 
+[![CI](https://github.com/gabriel-castro-dev/crypto-forecasting-app/actions/workflows/ci.yml/badge.svg)](https://github.com/gabriel-castro-dev/crypto-forecasting-app/actions/workflows/ci.yml)
+
 Plataforma ponta a ponta (End-to-End) para coleta automatizada, armazenamento persistente, previsão de preços com Machine Learning e exibição de indicadores do mercado de criptomoedas através de dashboards interativos.
 
-**Evolução do Projeto:** O sistema nasceu como um pipeline local de Análise Exploratória de Dados (EDA) focado em logs de terminal e planilhas CSV. A arquitetura atual transforma esse escopo inicial em um ecossistema robusto de dados baseado em microsserviços, APIs REST e automação via CI/CD.
+**Evolução do Projeto:** O sistema nasceu como um pipeline local de Análise Exploratória de Dados (EDA) focado em logs de terminal e planilhas CSV. A arquitetura atual transforma esse escopo inicial em um **monólito modular em monorepo**: jobs de coleta agendados, pipeline de feature engineering, uma API REST (em construção) e automação via CI/CD — responsabilidades separadas por camadas e contêineres, sem a complexidade operacional de microsserviços.
 
 ---
 
 ## Arquitetura do Sistema
 
-O projeto adota o modelo de **Monorepo**, segregando responsabilidades desde a coleta diária até a entrega de valor na interface do usuário.
+O projeto adota o modelo de **Monorepo**, segregando responsabilidades desde a coleta até a entrega de valor na interface do usuário.
 
 ```
 Binance API
 │
 ▼
-Pipeline de Coleta (GitHub Actions)
+Jobs de Coleta (GitHub Actions: 5min / 1h / diário)
 │
 ▼
-Supabase (PostgreSQL)
+Supabase (PostgreSQL + RLS)
 │
 ├──────────────────────────────┐
 ▼                              ▼
@@ -33,43 +35,50 @@ Usuário
 
 ### Divisão de Responsabilidades (Monorepo)
 
-| Componente | Tecnologia | Papel no Ecossistema | Hospedagem |
-| :--- | :--- | :--- | :--- |
-| **Pipeline de Coleta** | Python (`uv`) | Worker diário para ingestão, validação de candles inéditos e registro de logs. | GitHub Actions |
-| **Banco de Dados** | Supabase | PostgreSQL persistente para séries históricas, indicadores, previsões e versionamento de modelos. | Supabase Cloud |
-| **Back-end** | FastAPI *(em construção)* | Disponibilização de endpoints REST, autenticação, documentação Swagger, cálculo de indicadores técnicos em tempo real e entrega de previsões. | VM |
-| **Machine Learning**| Scikit-Learn / Prophet | Scripts de treinamento (semanal/mensal) e geração de projeções diárias de preços. | GitHub Actions / Runner |
-| **Front-end** | Vue + Nuxt + Tailwind | Dashboard interativo para comparação de ativos, gráficos temporais e acompanhamento de performance dos modelos. | Domínio grátis da VM Hostinger ou Vercel (a definir) |
+| Componente | Tecnologia | Papel no Ecossistema | Hospedagem | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **Jobs de Coleta** | Python (`uv`) + Docker | Ingestão agendada (orderbook a cada 5min, ticker 24h a cada hora, klines diário) sem duplicidade no banco. | GitHub Actions | Em produção |
+| **Feature Engineering** | Python (pandas, TA-Lib) + Docker | Cálculo diário de indicadores técnicos por timeframe + política de retenção. | GitHub Actions | Em produção |
+| **Banco de Dados** | Supabase | PostgreSQL persistente com RLS para séries históricas, indicadores, previsões e versionamento de modelos. | Supabase Cloud | Em produção |
+| **Back-end (API)** | FastAPI | Endpoints REST, autenticação via Supabase Auth, documentação Swagger e entrega de previsões. | VM | Em construção |
+| **Machine Learning** | Scikit-Learn / Prophet (a definir) | Scripts de treinamento e geração de projeções diárias de preços. | GitHub Actions / Runner | Planejado |
+| **Front-end** | Vue 3 + Nuxt + Tailwind | Dashboard interativo para comparação de ativos, gráficos temporais e performance dos modelos. | Domínio grátis da VM Hostinger ou Vercel (a definir) | Planejado |
 
 ---
 
 ## Tecnologias, Ferramentas & Padrões
 
-* **Linguagem Base:** Python 3.12+
+* **Linguagem Base:** Python 3.13+
 * **Gerenciador de Pacotes Python:** `uv` (Fast Python package installer & resolver)
-* **Validação de Ambiente:** Pydantic Settings (Gerenciamento de tipos via `.env`)
-* **Arquitetura do Código (Back-end):** Clean Architecture / 3-Tier (Split entre `Clients`, `Repositories`, `Services` e `Controllers`)
+* **Validação de Ambiente:** Pydantic Settings (carregamento lazy via `get_settings()` — imports sem side effects)
+* **Arquitetura do Código (Back-end):** Clean Architecture / camadas (`clients`, `services`, `ingestion`, `repositories`, `feature_engineering`; `controllers` chegam com a API)
 * **Front-end (planejado):** Vue 3, Nuxt e Tailwind CSS
-* **Autenticação (planejada):** Controle de acesso à API e ao dashboard via Supabase Auth
-* **Design Patterns:** Retry Pattern (Resiliência de conexões com a API), e Injeção de Dependências.
+* **Autenticação (planejada):** Controle de acesso à API e ao dashboard via Supabase Auth + RLS
+* **Design Patterns:** Retry Pattern centralizado (`call_with_retry` com erros tipados) e Injeção de Dependências (seams para testes offline e para o `Depends()` do FastAPI)
+* **Qualidade:** `pytest` (suíte 100% offline, sem `.env`) + `ruff` (lint e format) no CI
 
 ---
 
 ## Funcionalidades da Plataforma
 
 ### Ingestão & Pipeline de Dados
-* **Atualização Automática (Cron):** Ingestão diária via GitHub Actions capturando novos candles sem gerar duplicidade no banco.
-* **Resiliência a Falhas:** Lógica avançada de *retry* com backoff exponencial contra limites de rate-limit da API da Binance.
-* **Data Quality:** Validação de tipos e consistência estrutural antes da inserção no banco PostgreSQL.
+* **Atualização Automática (Cron):** Coleta em três cadências via GitHub Actions (5min / horária / diária) com upsert idempotente — sem duplicidade no banco.
+* **Resiliência a Falhas:** Retry centralizado com classificação de erros da API da Binance (permissão, símbolo inválido) e recuperação de streams históricos a partir do último candle.
+* **Data Quality:** Validação de tipos e consistência estrutural antes da inserção no banco PostgreSQL; falhas de ingestão derrubam o job com exit code ≠ 0 (visível no CI).
+* **Retenção Programada:** Limpeza automática por tabela conforme política declarada em YAML (ex.: klines 15m por 7 dias, features 24h permanentes).
 
 ### Inteligência Artificial & Computação
-* **Predição de Séries Temporais:** Modelos estatísticos/ML atualizados periodicamente utilizando todo o histórico de dados limpos.
-* **Versionamento:** Rastreabilidade completa de métricas de performance (MAE, RMSE) por versão de modelo gerado.
+* **Predição de Séries Temporais:** Modelos estatísticos/ML atualizados periodicamente utilizando todo o histórico de dados limpos. *(planejado)*
+* **Versionamento:** Rastreabilidade completa de métricas de performance (MAE, RMSE) por versão de modelo gerado. *(planejado)*
 
-### Entrega de Dados (API Gateway)
-* **Endpoints REST:** Rotas otimizadas para puxar histórico de preços, status do mercado e as previsões futuras.
-* **Indicadores Técnicos:** Cálculo em tempo real de métricas como RSI (IFR), Médias Móveis (SMA/EMA) e Bandas de Bollinger.
+### Entrega de Dados (API REST — em construção)
+* **Endpoints REST:** Rotas para histórico de preços, indicadores e previsões futuras.
+* **Segurança:** RLS ativo em todas as tabelas (leitura só para usuários autenticados; escrita restrita aos jobs via service role).
 * **Documentação Viva:** Swagger e OpenAPI gerados dinamicamente para consumo facilitado.
+
+### CI/CD
+* **CI:** `pytest` + `ruff` em todo PR/push à main; smoke build das imagens Docker quando Dockerfiles/dependências mudam.
+* **CD:** Push na main publica as imagens no GHCR (`crypto-jobs`, `crypto-feature-engineering`); os crons de coleta apenas fazem `docker pull` da imagem pronta.
 
 ---
 
@@ -124,76 +133,89 @@ Usuário
                                            └─────────────────────────────────────────────────────────┘
 ```
 
-> Coleta restrita ao **top 20 ativos por volume 24h** (exceto `ticker_24hr_history` que coleta todos para rankear). `features_klines` armazena indicadores calculados a partir dos dados brutos — é a tabela de entrada para os modelos de ML.
+> Coleta restrita ao **top 20 ativos por volume 24h** (exceto `ticker_24hr_history`, que coleta todos para rankear). As tabelas `features_*` armazenam indicadores calculados a partir dos dados brutos — são a entrada dos modelos de ML. Todas as tabelas têm **RLS ativo**: leitura para usuários autenticados, escrita apenas via service role dos jobs.
 
 ---
 
 ## Estrutura do Monorepo
 
 ```text
-crypto-market-platform/
-├── .github/
-│   └── workflows/
-│       └── daily_pipeline.yml       # Automação de coleta e predição diária
-├── back-end/                        # API REST (FastAPI)
+crypto-forecasting-app/
+├── .github/workflows/
+│   ├── ci.yml                       # CI: pytest + ruff + smoke build Docker
+│   ├── publish-images.yml           # CD: publica imagens no GHCR
+│   └── crypto_jobs.yml              # Crons de coleta (5min/1h/diário) + feature engineering
+├── back-end/
 │   ├── app/
-│   │   ├── clients/                 # Conexões externas (Binance, Supabase)
-│   │   ├── controllers/             # Orquestração das rotas de entrada
-│   │   ├── repositories/            # Camada de persistência/consultas SQL
-│   │   ├── services/                # Regras de negócio e cálculos matemáticos
+│   │   ├── clients/                 # Conexões externas (Binance com retry, Supabase)
+│   │   ├── services/                # Transformação dos dados da Binance em DataFrames tipados
+│   │   ├── ingestion/               # Jobs de ingestão: fetch no service + upsert no repository
+│   │   ├── repositories/            # Persistência pura no Supabase
 │   │   └── feature_engineering/     # Pipeline offline de features + retenção
-│   │       ├── config/              # features.yaml
-│   │       ├── pipelines/           # Orquestração por tabela (orderbook, klines, etc.)
-│   │       ├── transforms/          # Indicadores técnicos (SMA, RSI, Bollinger, etc.)
-│   │       ├── downsample/          # Resample 5min→1h, 1h→1d
+│   │       ├── config/              # features.yml (features por timeframe + retenção)
+│   │       ├── pipelines/           # Orquestração por fonte (klines, orderbook, ticker)
+│   │       ├── transforms/          # Indicadores técnicos (SMA, RSI, Bollinger, ATR…)
 │   │       └── retention/           # Limpeza programada por retenção
-│   │                                # (usa repositories/ para ler/escrever)
-│   ├── main.py                      # Inicialização do servidor FastAPI
-│   ├── config.py                    # Classe de Settings Pydantic
-│   └── pyproject.toml               # Dependências da API via 'uv'
-├── front-end/                       # Dashboard Interativo (Vue/Nuxt) — planejado
-├── pipeline_coleta/                 # Scripts isolados do Worker de Ingestão
-└── ml_models/                       # Modelos preditivos, métricas e notebooks
+│   ├── tests/                       # Suíte pytest (offline, sem .env)
+│   ├── jobs.py                      # Dispatcher CLI dos jobs de coleta
+│   ├── historical_charge.py         # Backfill histórico de candles
+│   ├── main.py                      # Script de verificação de conectividade com a Binance
+│   ├── config.py                    # Settings Pydantic (get_settings lazy)
+│   ├── Dockerfile.jobs              # Imagem dos jobs de coleta
+│   ├── Dockerfile.feature-engineering
+│   └── pyproject.toml               # Dependências via uv
+├── docs/agents/                     # Convenções para agentes (issue tracker, labels, domínio)
+├── front-end/                       # Dashboard (Vue/Nuxt) — planejado
+└── ml_models/                       # Modelos preditivos e métricas — planejado
 ```
+
+> `controllers/` (rotas FastAPI) entra junto com a API; `front-end/` e `ml_models/` ainda não existem no repo.
 
 ## Instalação & Setup de Desenvolvimento
-Pré-requisitos
 
-* Python 3.12+ instalado.
-* Gerenciador uv instalado (pip install uv).
+Pré-requisitos:
 
-## 1. Preparando o Back-end
+* Python 3.13+ instalado.
+* Gerenciador `uv` instalado (`pip install uv`).
 
-```Bash
-# Entrar na pasta do backend
+### 1. Preparando o Back-end
+
+```bash
 cd back-end
+uv sync   # instala dependências e cria o ambiente virtual
 ```
 
-* Instalar dependências e criar ambiente virtual automaticamente via uv
+### 2. Rodando os testes
 
-```Bash
-uv sync
+A suíte é 100% offline — não precisa de `.env` nem de credenciais:
+
+```bash
+uv run pytest
+uv run ruff check .
 ```
 
-## 2. Variáveis de Ambiente
+### 3. Variáveis de Ambiente (para rodar os jobs de verdade)
 
-* Crie um arquivo .env na raiz do monorepo seguindo a estrutura abaixo:
+Crie um arquivo `.env` dentro de `back-end/`:
 
-```Bash
-Snippet de código
-SUPABASE_URL=[https://seu-projeto.supabase.co](https://seu-projeto.supabase.co)
-SUPABASE_KEY=sua-chave-pública-supabase
+```env
+SUPABASE_URL=https://seu-projeto.supabase.co
+SUPABASE_KEY=sua-service-role-key
 BINANCE_API_KEY=sua-api-key-da-binance
 BINANCE_API_SECRET=seu-secret-da-binance
 USE_TESTNET=True
 ```
 
-## 3. Rodando a API Localmente
+### 4. Rodando os jobs localmente
 
-```Bash
-uv run uvicorn app.main:app --reload
-Acesse a documentação interativa em: http://127.0.0.1:8000/docs
+```bash
+uv run python jobs.py five-minutes   # orderbook tickers
+uv run python jobs.py hourly         # ticker 24h
+uv run python jobs.py daily          # klines 15m/1h/1d
+uv run python -m app.feature_engineering.main   # features + retenção
 ```
+
+> A API FastAPI está em construção — quando existir, esta seção ganhará o `uvicorn` e o link do Swagger.
 
 # Licença
 
