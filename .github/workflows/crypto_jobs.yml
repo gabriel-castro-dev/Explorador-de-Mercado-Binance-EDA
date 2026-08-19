@@ -19,6 +19,14 @@ on:
           - daily
           - feature-engineering
 
+permissions:
+  contents: read
+  packages: read
+
+env:
+  JOBS_IMAGE: ghcr.io/${{ github.repository }}/crypto-jobs:latest
+  FE_IMAGE: ghcr.io/${{ github.repository }}/crypto-feature-engineering:latest
+
 jobs:
   five-minutes-job:
     name: Executar Coleta a Cada 5 Minutos
@@ -26,10 +34,21 @@ jobs:
       github.event_name == 'workflow_dispatch' && github.event.inputs.job_to_run == 'five-minutes'
       || github.event_name == 'schedule' && github.event.schedule == '*/5 * * * *'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: crypto-five-minutes
+      cancel-in-progress: true # snapshot atrasado é inútil quando o próximo tick chega
 
     steps:
-      - name: Baixar Código do Repositório
-        uses: actions/checkout@v4
+      - name: Login no GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull da imagem pré-construída
+        run: docker pull "$JOBS_IMAGE"
 
       - name: Activar Cloudflare WARP (Bypass Geoblock)
         uses: fscarmen/warp-on-actions@v1.4
@@ -37,19 +56,15 @@ jobs:
           stack: dual
           mode: wireguard
 
-      - name: Build da Imagem Docker
-        working-directory: back-end
-        run: docker build -t crypto-jobs -f Dockerfile.jobs .
-
       - name: Rodar Job a Cada 5 Minutos
         run: |
-          docker run \
+          docker run --rm \
             -e SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
             -e SUPABASE_KEY="${{ secrets.SUPABASE_KEY }}" \
             -e BINANCE_API_KEY="${{ secrets.BINANCE_API_KEY }}" \
             -e BINANCE_API_SECRET="${{ secrets.BINANCE_API_SECRET }}" \
             -e BINANCE_PROXY="${{ secrets.BINANCE_PROXY }}" \
-            crypto-jobs uv run python jobs.py five-minutes
+            "$JOBS_IMAGE" uv run python jobs.py five-minutes
 
   hourly-job:
     name: Executar Coleta Horária
@@ -57,10 +72,21 @@ jobs:
       github.event_name == 'workflow_dispatch' && github.event.inputs.job_to_run == 'hourly'
       || github.event_name == 'schedule' && github.event.schedule == '0 * * * *'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: crypto-hourly
+      cancel-in-progress: false
 
     steps:
-      - name: Baixar Código do Repositório
-        uses: actions/checkout@v4
+      - name: Login no GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull da imagem pré-construída
+        run: docker pull "$JOBS_IMAGE"
 
       - name: Activar Cloudflare WARP (Bypass Geoblock)
         uses: fscarmen/warp-on-actions@v1.4
@@ -68,19 +94,15 @@ jobs:
           stack: dual
           mode: wireguard
 
-      - name: Build da Imagem Docker
-        working-directory: back-end
-        run: docker build -t crypto-jobs -f Dockerfile.jobs .
-
       - name: Rodar Job Horário
         run: |
-          docker run \
+          docker run --rm \
             -e SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
             -e SUPABASE_KEY="${{ secrets.SUPABASE_KEY }}" \
             -e BINANCE_API_KEY="${{ secrets.BINANCE_API_KEY }}" \
             -e BINANCE_API_SECRET="${{ secrets.BINANCE_API_SECRET }}" \
             -e BINANCE_PROXY="${{ secrets.BINANCE_PROXY }}" \
-            crypto-jobs uv run python jobs.py hourly
+            "$JOBS_IMAGE" uv run python jobs.py hourly
 
   daily-job:
     name: Executar Coleta Diária
@@ -88,24 +110,40 @@ jobs:
       github.event_name == 'workflow_dispatch' && github.event.inputs.job_to_run == 'daily'
       || github.event_name == 'schedule' && github.event.schedule == '5 0 * * *'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: crypto-daily
+      cancel-in-progress: false
 
     steps:
-      - name: Baixar Código do Repositório
-        uses: actions/checkout@v4
+      - name: Login no GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build da Imagem Docker
-        working-directory: back-end
-        run: docker build -t crypto-jobs -f Dockerfile.jobs .
+      - name: Pull da imagem pré-construída
+        run: docker pull "$JOBS_IMAGE"
+
+      # NOVO: o job diário busca klines na Binance (jobs.py -> BinanceMarketService);
+      # sem WARP ele só funciona se BINANCE_PROXY estiver ativo ou o runner cair
+      # fora de região bloqueada. Igualado aos demais jobs por consistência.
+      - name: Activar Cloudflare WARP (Bypass Geoblock)
+        uses: fscarmen/warp-on-actions@v1.4
+        with:
+          stack: dual
+          mode: wireguard
 
       - name: Rodar Job Diário
         run: |
-          docker run \
+          docker run --rm \
             -e SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
             -e SUPABASE_KEY="${{ secrets.SUPABASE_KEY }}" \
             -e BINANCE_API_KEY="${{ secrets.BINANCE_API_KEY }}" \
             -e BINANCE_API_SECRET="${{ secrets.BINANCE_API_SECRET }}" \
             -e BINANCE_PROXY="${{ secrets.BINANCE_PROXY }}" \
-            crypto-jobs uv run python jobs.py daily
+            "$JOBS_IMAGE" uv run python jobs.py daily
 
   feature-engineering-job:
     name: Construir Features e Aplicar Retenção
@@ -119,11 +157,22 @@ jobs:
         needs.daily-job.result == 'success'
       )
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: crypto-feature-engineering
+      cancel-in-progress: false
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Build imagem feature engineering
-        working-directory: back-end
-        run: docker build -t crypto-feature-engineering -f Dockerfile.feature-engineering .
+      - name: Login no GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull da imagem pré-construída
+        run: docker pull "$FE_IMAGE"
+
       - name: Construir features e limpar dados expirados
         run: |
           docker run --rm \
@@ -132,4 +181,4 @@ jobs:
             -e BINANCE_API_KEY="${{ secrets.BINANCE_API_KEY }}" \
             -e BINANCE_API_SECRET="${{ secrets.BINANCE_API_SECRET }}" \
             -e BINANCE_PROXY="${{ secrets.BINANCE_PROXY }}" \
-            crypto-feature-engineering
+            "$FE_IMAGE"
