@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   arrowOf,
   formatAgo,
+  formatChange,
   formatCompact,
   formatNumber,
   formatPercent,
@@ -56,6 +57,12 @@ describe('numbers pt-BR', () => {
     expect(priceDecimals(0.00001234)).toBe(8)
     expect(formatPrice(0.231)).toBe('0,2310')
     expect(formatPrice(null)).toBe('—')
+  })
+  it('absolute change uses the reference price decimals', () => {
+    expect(formatChange(901.01, 113500)).toBe('+901,0')
+    expect(formatChange(0, 0.231)).toBe('0,0000')
+    expect(formatChange(-26.9, 4312)).toBe('−26,9')
+    expect(formatChange(null, 1)).toBe('—')
   })
   it('percent with explicit sign and space before %', () => {
     expect(formatPercent(1.84)).toBe('+1,84 %')

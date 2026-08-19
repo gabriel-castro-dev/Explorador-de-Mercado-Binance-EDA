@@ -24,6 +24,9 @@ export const TIMEFRAME_META: Record<Timeframe, { label: string, subtitle: string
 /** Limiar de "dados velhos" (ux-spec §6), em horas. */
 export const STALE_AFTER_HOURS = { klines: 26, tickers: 2 } as const
 
+/** Velas 1d: a última vela (aberta) tem open_time de até ~48 h → limiar maior. */
+export const STALE_AFTER_HOURS_BY_TF: Record<Timeframe, number> = { '15m': 26, '1h': 26, '1d': 50 }
+
 export type LineStyleName = 'solid' | 'dashed' | 'dotted'
 export type IndicatorPane = 'price' | 'volume' | 'rsi' | 'macd'
 

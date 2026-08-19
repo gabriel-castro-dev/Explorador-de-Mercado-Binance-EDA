@@ -63,9 +63,24 @@ export function isApiError(value: unknown): value is ApiError {
   return value instanceof ApiError || (typeof value === 'object' && value !== null && (value as { name?: string }).name === 'ApiError')
 }
 
+/** Desembrulha o ApiError de wrappers (ex.: `createError` do Nuxt guarda o original em `cause`). */
+export function unwrapApiError(value: unknown, depth = 0): ApiError | null {
+  if (isApiError(value)) return value
+  if (depth < 5 && typeof value === 'object' && value !== null && 'cause' in value) {
+    return unwrapApiError((value as { cause?: unknown }).cause, depth + 1)
+  }
+  return null
+}
+
 /** Texto curto/mono para o detalhe do ErrorState. */
 export function describeError(error: unknown): string | undefined {
-  if (!isApiError(error)) return undefined
-  if (!error.request) return error.status ? `HTTP ${error.status}` : undefined
-  return error.status ? `${error.request} · ${error.status}` : `${error.request} · rede`
+  const err = unwrapApiError(error)
+  if (!err) return undefined
+  if (!err.request) return err.status ? `HTTP ${err.status}` : undefined
+  return err.status ? `${err.request} · ${err.status}` : `${err.request} · rede`
+}
+
+/** Mensagem amigável (do ApiError) ou fallback. */
+export function messageOf(error: unknown, fallback = 'A API não respondeu. Tente de novo em alguns segundos.'): string {
+  return unwrapApiError(error)?.message ?? fallback
 }

@@ -77,6 +77,13 @@ export function formatPrice(value: number | null | undefined, opts: { sign?: boo
   return formatNumber(value, priceDecimals(value), opts)
 }
 
+/** Variação absoluta com as casas decimais do preço de referência (ex.: `+901,0` para BTC, `0,0000` para DOGE). */
+export function formatChange(change: number | null | undefined, referencePrice: number | null | undefined): string {
+  if (change === null || change === undefined || Number.isNaN(change)) return EM_DASH
+  const ref = referencePrice ?? change
+  return formatNumber(change, priceDecimals(ref === 0 ? 1 : ref), { sign: true })
+}
+
 /** `+1,84 %` · `−0,62 %` · `+0,00 %`. */
 export function formatPercent(value: number | null | undefined, decimals = 2): string {
   if (value === null || value === undefined || Number.isNaN(value)) return EM_DASH

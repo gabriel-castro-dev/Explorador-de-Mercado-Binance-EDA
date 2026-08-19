@@ -14,8 +14,11 @@ export function useFreshness(
   source: FreshnessSource,
   lastAt: MaybeRefOrGetter<string | null | undefined>,
   status: MaybeRefOrGetter<'idle' | 'pending' | 'success' | 'error'>,
+  /** Limiar em horas (default por fonte); ex.: velas 1d têm open_time de até ~48 h → 50. */
+  thresholdHours?: MaybeRefOrGetter<number | undefined>,
 ) {
   const now = useNow({ interval: 60_000 })
+  const limit = computed(() => toValue(thresholdHours) ?? STALE_AFTER_HOURS[source])
 
   const state = computed<FreshnessState>(() => {
     const s = toValue(status)
@@ -23,7 +26,7 @@ export function useFreshness(
     if (s === 'error') return 'error'
     if (s === 'pending' && !at) return 'loading'
     if (!at) return 'empty'
-    return hoursSince(at, now.value) > STALE_AFTER_HOURS[source] ? 'stale' : 'fresh'
+    return hoursSince(at, now.value) > limit.value ? 'stale' : 'fresh'
   })
 
   const isStale = computed(() => state.value === 'stale')

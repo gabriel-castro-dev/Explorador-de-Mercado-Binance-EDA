@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ApiError, describeError, isApiError, networkError, normalizeApiError } from '../../app/utils/api-errors'
+import { ApiError, describeError, isApiError, messageOf, networkError, normalizeApiError, unwrapApiError } from '../../app/utils/api-errors'
 
 describe('normalizeApiError', () => {
   it('401 → unauthorized with generic message (string detail)', () => {
@@ -36,5 +36,16 @@ describe('networkError / isApiError', () => {
     expect(isApiError(err)).toBe(true)
     expect(isApiError(new Error('x'))).toBe(false)
     expect(err).toBeInstanceOf(ApiError)
+  })
+})
+
+describe('unwrapApiError / messageOf', () => {
+  it('finds the ApiError inside a wrapper (Nuxt createError keeps it in cause)', () => {
+    const inner = normalizeApiError(503, 'Service Unavailable', 'GET /klines/1h')
+    const wrapped = Object.assign(new Error(inner.message), { cause: inner, statusCode: 500 })
+    expect(unwrapApiError(wrapped)).toBe(inner)
+    expect(describeError(wrapped)).toBe('GET /klines/1h · 503')
+    expect(messageOf(wrapped)).toMatch(/API não respondeu/)
+    expect(messageOf(new Error('x'), 'fallback')).toBe('fallback')
   })
 })
