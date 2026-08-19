@@ -381,3 +381,69 @@ class KlinesRepositoryTests(unittest.TestCase):
         self.assertEqual(
             builder.upsert.call_args.kwargs["on_conflict"], "symbol,open_time"
         )
+
+
+class RetryHelperTests(unittest.TestCase):
+    def test_returns_value_after_transient_failures_and_sleeps(self):
+        from app.clients.binance_client import call_with_retry
+
+        fn = MagicMock(side_effect=[RuntimeError("net"), RuntimeError("net"), [1]])
+        sleep = MagicMock()
+        result = call_with_retry(
+            fn, retries=3, delay=5, context="teste", empty=[], sleep=sleep
+        )
+        self.assertEqual(result, [1])
+        self.assertEqual(sleep.call_count, 2)
+        sleep.assert_called_with(5)
+
+    def test_permission_error_raises_immediately(self):
+        from app.clients.binance_client import (
+            BinanceUnauthorizedError,
+            call_with_retry,
+        )
+
+        fn = MagicMock(side_effect=RuntimeError("APIError(code=-2015): denied"))
+        with self.assertRaises(BinanceUnauthorizedError) as ctx:
+            call_with_retry(
+                fn, retries=3, delay=0, context="teste", sleep=MagicMock()
+            )
+        self.assertIsInstance(ctx.exception, PermissionError)
+        self.assertEqual(fn.call_count, 1)
+
+    def test_invalid_symbol_raises_typed_key_error(self):
+        from app.clients.binance_client import (
+            BinanceInvalidSymbolError,
+            call_with_retry,
+        )
+
+        fn = MagicMock(side_effect=RuntimeError("APIError(code=-1121): bad symbol"))
+        with self.assertRaises(BinanceInvalidSymbolError) as ctx:
+            call_with_retry(
+                fn, retries=3, delay=0, context="teste", sleep=MagicMock()
+            )
+        self.assertIsInstance(ctx.exception, KeyError)
+
+    def test_exhaustion_returns_empty_sentinel(self):
+        from app.clients.binance_client import call_with_retry
+
+        fn = MagicMock(side_effect=RuntimeError("net"))
+        result = call_with_retry(
+            fn, retries=3, delay=0, context="teste", empty={}, sleep=MagicMock()
+        )
+        self.assertEqual(result, {})
+        self.assertEqual(fn.call_count, 3)
+
+    def test_invalid_result_is_retried_until_valid(self):
+        from app.clients.binance_client import call_with_retry
+
+        fn = MagicMock(side_effect=[[], [], [7]])
+        result = call_with_retry(
+            fn,
+            retries=3,
+            delay=0,
+            context="teste",
+            validate=lambda data: isinstance(data, list) and len(data) > 0,
+            empty=[],
+            sleep=MagicMock(),
+        )
+        self.assertEqual(result, [7])
