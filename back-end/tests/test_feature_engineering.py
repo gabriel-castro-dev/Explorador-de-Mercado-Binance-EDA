@@ -64,8 +64,12 @@ class KlinesPipelineTests(unittest.TestCase):
         klines_repo = MagicMock()
         klines_repo.get_latest_klines.return_value = candles
         features_repo = MagicMock()
-        KlinesPipeline(klines_repo, features_repo).run("15m")
+        # Bypass the warm-up filter: this fixture is too short for sma_200 and
+        # the subject under test is the MACD calculation, not the filtering.
+        with patch.object(KlinesPipeline, "_drop_warmup_rows", staticmethod(lambda df, tf: df)):
+            KlinesPipeline(klines_repo, features_repo).run("15m")
         saved = features_repo.save_features.call_args.args[1]
+        self.assertFalse(saved.empty)
         self.assertTrue(saved["macd_signal"].notna().all())
         self.assertNotIn("macd", saved.columns)
         self.assertNotIn("macd_histogram", saved.columns)
@@ -75,6 +79,33 @@ class KlinesPipelineTests(unittest.TestCase):
             .transform(lambda values: values.ewm(span=9, adjust=False).mean())
         )
         pd.testing.assert_series_equal(saved["macd_signal"], expected, check_names=False)
+
+    def test_warmup_rows_without_sma200_are_not_persisted(self):
+        periods_a, periods_b = 205, 3
+        candles = pd.DataFrame(
+            {
+                "symbol": ["A"] * periods_a + ["B"] * periods_b,
+                "open_time": list(
+                    pd.date_range("2026-01-01", periods=periods_a, freq="h", tz="UTC")
+                )
+                + list(pd.date_range("2026-01-01", periods=periods_b, freq="h", tz="UTC")),
+                "open": [1.0] * (periods_a + periods_b),
+                "high": [2.0] * (periods_a + periods_b),
+                "low": [0.5] * (periods_a + periods_b),
+                "close": [float(i % 7 + 1) for i in range(periods_a + periods_b)],
+                "volume": [1.0] * (periods_a + periods_b),
+            }
+        )
+        klines_repo = MagicMock()
+        klines_repo.get_latest_klines.return_value = candles
+        features_repo = MagicMock()
+        KlinesPipeline(klines_repo, features_repo).run("15m")
+        saved = features_repo.save_features.call_args.args[1]
+        # Symbol A: sma_200 exists from the 200th candle on -> 205 - 199 = 6 rows.
+        # Symbol B: only 3 candles, pure warm-up -> nothing persisted.
+        self.assertEqual(len(saved), periods_a - 199)
+        self.assertEqual(set(saved["symbol"]), {"A"})
+        self.assertTrue(saved["sma_200"].notna().all())
 
 
 class FeaturesRepositoryTests(unittest.TestCase):
@@ -358,6 +389,43 @@ class KlinesRepositoryTests(unittest.TestCase):
         supabase.table.assert_called_with("klines_15m")
         self.assertEqual(builder.upsert.call_count, 2)
         self.assertEqual(builder.upsert.call_args.kwargs["on_conflict"], "symbol,open_time")
+
+    def test_get_latest_klines_paginates_past_postgrest_row_cap(self):
+        from app.repositories.klines_repository import KlinesRepository
+
+        page_size = KlinesRepository._READ_PAGE_SIZE
+        full_page = [{"symbol": "AUSDT", "open_time": str(i)} for i in range(page_size)]
+        partial_page = [{"symbol": "ZUSDT", "open_time": "x"}] * 5
+        builder = MagicMock()
+        builder.select.return_value = builder
+        builder.order.return_value = builder
+        builder.range.return_value = builder
+        builder.execute.side_effect = [
+            MagicMock(data=full_page),
+            MagicMock(data=partial_page),
+        ]
+        supabase = MagicMock()
+        supabase.table.return_value = builder
+        df = KlinesRepository(supabase=supabase).get_latest_klines("15m")
+        self.assertEqual(len(df), page_size + 5)
+        self.assertEqual(
+            [call.args for call in builder.range.call_args_list],
+            [(0, page_size - 1), (page_size, 2 * page_size - 1)],
+        )
+
+    def test_get_latest_klines_single_page_stops_after_one_request(self):
+        from app.repositories.klines_repository import KlinesRepository
+
+        builder = MagicMock()
+        builder.select.return_value = builder
+        builder.order.return_value = builder
+        builder.range.return_value = builder
+        builder.execute.side_effect = [MagicMock(data=[{"symbol": "AUSDT"}])]
+        supabase = MagicMock()
+        supabase.table.return_value = builder
+        df = KlinesRepository(supabase=supabase).get_latest_klines("1h")
+        self.assertEqual(len(df), 1)
+        self.assertEqual(builder.execute.call_count, 1)
 
 
 class RetryHelperTests(unittest.TestCase):

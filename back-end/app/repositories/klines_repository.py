@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 class KlinesRepository(BaseRepository):
     _BATCH_SIZE = 500
+    _READ_PAGE_SIZE = 1000
     _COLUMN_MAP = {
         "Open_Time": "open_time",
         "Open": "open",
@@ -52,14 +53,32 @@ class KlinesRepository(BaseRepository):
     )
 
     def get_latest_klines(self, timeframe: str) -> pd.DataFrame:
-        response = (
-            self.supabase.table(f"klines_{timeframe}")
-            .select("*")
-            .order("symbol")
-            .order("open_time")
-            .execute()
-        )
-        return pd.DataFrame(response.data)
+        """Read the whole candle table, paginating past the PostgREST row cap.
+
+        PostgREST truncates unbounded selects at the project's max-rows
+        setting, so a single request silently drops every symbol after the
+        cutoff. Paging with ``range`` keeps the read complete regardless of
+        table size.
+        """
+        pages: list[list[dict]] = []
+        offset = 0
+        while True:
+            response = (
+                self.supabase.table(f"klines_{timeframe}")
+                .select("*")
+                .order("symbol")
+                .order("open_time")
+                .range(offset, offset + self._READ_PAGE_SIZE - 1)
+                .execute()
+            )
+            page = response.data
+            if page:
+                pages.append(page)
+            if len(page) < self._READ_PAGE_SIZE:
+                break
+            offset += self._READ_PAGE_SIZE
+        rows = [row for page in pages for row in page]
+        return pd.DataFrame(rows)
 
     def query_klines(
         self,

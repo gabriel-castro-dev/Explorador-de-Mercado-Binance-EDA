@@ -81,9 +81,27 @@ class KlinesPipeline(BasePipeline):
             if "open_time" not in processed.columns:
                 raise ValueError("Candles devem conter a coluna 'open_time'.")
             processed = processed.rename(columns={"open_time": "timestamp"})
+            processed = self._drop_warmup_rows(processed, timeframe)
             self.features_repo.save_features(
                 timeframe, processed.reindex(columns=self._DESTINATION_COLUMNS)
             )
         except Exception:
             logger.exception("Falha no pipeline de klines para timeframe %s.", timeframe)
             raise
+
+    @staticmethod
+    def _drop_warmup_rows(processed, timeframe: str):
+        """Drop rows still inside the longest indicator window (sma_200).
+
+        Rows without ``sma_200`` are warm-up: uploading them would overwrite
+        previously computed values with NULL as candles age toward the edge
+        of the retention window, and they are useless for training anyway.
+        """
+        warm = processed["sma_200"].isna()
+        if warm.any():
+            logger.info(
+                "%s linhas de warm-up (sma_200 nulo) descartadas no timeframe %s.",
+                int(warm.sum()),
+                timeframe,
+            )
+        return processed[~warm]
