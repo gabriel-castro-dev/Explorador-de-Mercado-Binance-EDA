@@ -52,6 +52,7 @@ jobs:
 
       - name: Activar Cloudflare WARP (Bypass Geoblock)
         uses: fscarmen/warp-on-actions@v1.4
+        timeout-minutes: 3 # registro do WARP trava intermitentemente; falhar rápido e deixar o próximo tick recuperar
         with:
           stack: dual
           mode: wireguard
@@ -90,6 +91,7 @@ jobs:
 
       - name: Activar Cloudflare WARP (Bypass Geoblock)
         uses: fscarmen/warp-on-actions@v1.4
+        timeout-minutes: 3 # registro do WARP trava intermitentemente; falhar rápido e deixar o próximo tick recuperar
         with:
           stack: dual
           mode: wireguard
@@ -131,6 +133,7 @@ jobs:
       # fora de região bloqueada. Igualado aos demais jobs por consistência.
       - name: Activar Cloudflare WARP (Bypass Geoblock)
         uses: fscarmen/warp-on-actions@v1.4
+        timeout-minutes: 3 # registro do WARP trava intermitentemente; falhar rápido e deixar o próximo tick recuperar
         with:
           stack: dual
           mode: wireguard
