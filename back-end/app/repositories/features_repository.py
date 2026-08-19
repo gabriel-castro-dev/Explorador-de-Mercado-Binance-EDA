@@ -1,10 +1,12 @@
 """Persistence for calculated feature rows."""
 
 import logging
+from datetime import datetime
 from typing import Any
 
 import pandas as pd
 
+from app.core.timeframe import Timeframe
 from app.repositories.base import BaseRepository
 
 logger = logging.getLogger(__name__)
@@ -14,6 +16,28 @@ class FeaturesRepository(BaseRepository):
     _TABLES = {"15m": "features_15m", "1h": "features_1h", "24h": "features_24h"}
     _GENERATED_COLUMNS = frozenset({"macd", "macd_histogram", "bb_width"})
     _UPSERT_BATCH_SIZE = 500
+
+    def query_features(
+        self,
+        timeframe: Timeframe,
+        symbol: str,
+        limit: int = 200,
+        start: datetime | None = None,
+        end: datetime | None = None,
+    ) -> list[dict]:
+        """Read indicator rows for one symbol, newest first, with optional filters."""
+        query = (
+            self.supabase.table(timeframe.feature_table)
+            .select("*")
+            .eq("symbol", symbol)
+            .order("timestamp", desc=True)
+            .limit(limit)
+        )
+        if start is not None:
+            query = query.gte("timestamp", start.isoformat())
+        if end is not None:
+            query = query.lte("timestamp", end.isoformat())
+        return query.execute().data
 
     def save_features(self, timeframe: str, df: pd.DataFrame) -> None:
         if df.empty:

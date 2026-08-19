@@ -1,9 +1,11 @@
 """Persistence and reads for candlestick tables."""
 
 import logging
+from datetime import datetime
 
 import pandas as pd
 
+from app.core.timeframe import Timeframe
 from app.repositories.base import BaseRepository
 
 logger = logging.getLogger(__name__)
@@ -58,6 +60,28 @@ class KlinesRepository(BaseRepository):
             .execute()
         )
         return pd.DataFrame(response.data)
+
+    def query_klines(
+        self,
+        timeframe: Timeframe,
+        symbol: str,
+        limit: int = 200,
+        start: datetime | None = None,
+        end: datetime | None = None,
+    ) -> list[dict]:
+        """Read candles for one symbol, newest first, with optional period filters."""
+        query = (
+            self.supabase.table(timeframe.kline_table)
+            .select("*")
+            .eq("symbol", symbol)
+            .order("open_time", desc=True)
+            .limit(limit)
+        )
+        if start is not None:
+            query = query.gte("open_time", start.isoformat())
+        if end is not None:
+            query = query.lte("open_time", end.isoformat())
+        return query.execute().data
 
     def upsert_klines(self, interval: str, df: pd.DataFrame) -> int:
         prepared = self._prepare_klines(df)
