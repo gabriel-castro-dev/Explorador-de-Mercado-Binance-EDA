@@ -345,9 +345,18 @@ class BinanceMarketService:
         start_str: Optional[str] = None,
         end_str: Optional[str] = None,
         batch_size: int = 500,
+        symbols: Optional[list[str]] = None,
     ):
-        """Yield normalized historical candles per symbol and batch."""
-        symbols = self.get_tracked_symbols()
+        """Yield normalized historical candles per symbol and batch.
+
+        Args:
+            interval: Candlestick interval (e.g., '15m', '1h', '1d').
+            start_str: Start date (e.g., '10 days ago UTC').
+            end_str: End date (optional).
+            batch_size: Rows per yielded DataFrame.
+            symbols: Explicit symbols to stream; defaults to the tracked list.
+        """
+        symbols = symbols or self.get_tracked_symbols()
         for symbol in symbols:
             rows: list[list] = []
             try:

@@ -103,7 +103,7 @@ class KlinesRepository(BaseRepository):
         return query.execute().data
 
     def upsert_klines(self, interval: str, df: pd.DataFrame) -> int:
-        prepared = self._prepare_klines(df)
+        prepared = self.normalize_klines(df)
         for start in range(0, len(prepared), self._BATCH_SIZE):
             self.supabase.table(f"klines_{interval}").upsert(
                 self._to_records(prepared.iloc[start : start + self._BATCH_SIZE]),
@@ -112,9 +112,15 @@ class KlinesRepository(BaseRepository):
         logger.info("%s klines persistidos em klines_%s.", len(prepared), interval)
         return len(prepared)
 
-    def _prepare_klines(self, df: pd.DataFrame) -> pd.DataFrame:
+    @classmethod
+    def normalize_klines(cls, df: pd.DataFrame) -> pd.DataFrame:
+        """Normalize raw Binance kline columns to the database naming/dtypes.
+
+        Pure classmethod so callers that never persist candles (e.g. the
+        in-memory historical backfill) can reuse the exact same contract.
+        """
         prepared = (
-            df.rename(columns=self._COLUMN_MAP)
+            df.rename(columns=cls._COLUMN_MAP)
             .drop(columns=["Ignore", "interval"], errors="ignore")
             .copy()
         )
@@ -132,7 +138,7 @@ class KlinesRepository(BaseRepository):
         for column in ("open_time", "close_time"):
             if column in prepared.columns:
                 prepared[column] = pd.to_datetime(prepared[column], errors="coerce", utc=True)
-        for column in self._NUMERIC_COLUMNS:
+        for column in cls._NUMERIC_COLUMNS:
             if column in prepared.columns:
                 prepared[column] = pd.to_numeric(prepared[column], errors="coerce")
         if "number_of_trades" in prepared.columns:
@@ -143,7 +149,7 @@ class KlinesRepository(BaseRepository):
             subset=["symbol", "open_time", "open", "high", "low", "close", "volume"]
         )
         return prepared.reindex(
-            columns=[column for column in self._COLUMNS if column in prepared.columns]
+            columns=[column for column in cls._COLUMNS if column in prepared.columns]
         )
 
     @staticmethod

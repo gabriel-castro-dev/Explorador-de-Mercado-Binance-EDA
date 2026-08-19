@@ -11,7 +11,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import historical_charge
+import backfill_features
 from app.feature_engineering.pipelines.klines_pipeline import KlinesPipeline
 from app.feature_engineering.transforms.technical_indicators import (
     TechnicalIndicatorsTransform,
@@ -154,36 +154,98 @@ class FeaturesRepositoryTests(unittest.TestCase):
         )
 
 
-class HistoricalChargeTests(unittest.TestCase):
-    def test_historical_charge_streams_batches_then_runs_features(self):
-        batch = pd.DataFrame(
+class BackfillFeaturesTests(unittest.TestCase):
+    _NOW = datetime(2026, 8, 1, tzinfo=timezone.utc)
+
+    @staticmethod
+    def _raw_daily_frame(symbol, periods, end):
+        start = end - pd.Timedelta(days=periods)
+        times = pd.date_range(start, periods=periods, freq="D", tz="UTC")
+        return pd.DataFrame(
             {
-                "symbol": ["BTCUSDT"],
-                "Open_Time": [pd.Timestamp("2026-01-01", tz="UTC")],
-                "Open": [1.0],
-                "High": [2.0],
-                "Low": [0.5],
-                "Close": [1.5],
-                "Volume": [3.0],
+                "symbol": [symbol] * periods,
+                "Open_Time": times,
+                "Open": [1.0] * periods,
+                "High": [2.0] * periods,
+                "Low": [0.5] * periods,
+                "Close": [float(i % 7 + 1) for i in range(periods)],
+                "Volume": [3.0] * periods,
             }
         )
+
+    def test_1d_persists_raw_klines_and_only_windowed_features(self):
+        raw = self._raw_daily_frame("BTCUSDT", periods=350, end=self._NOW)
         service = MagicMock()
-        service.iter_historical_klines.side_effect = lambda interval, start: iter(
-            [("BTCUSDT", batch)]
-        )
+        service.get_tracked_symbols.return_value = ["BTCUSDT"]
+        service.iter_historical_klines.side_effect = lambda *a, **kw: iter([("BTCUSDT", raw)])
         klines_repo = MagicMock()
         features_repo = MagicMock()
-        with patch.object(historical_charge, "KlinesPipeline") as pipeline_class:
-            historical_charge.run(
-                service,
-                klines_repo,
-                features_repo,
-                datetime(2026, 8, 9, tzinfo=timezone.utc),
-            )
-        self.assertEqual(klines_repo.upsert_klines.call_count, 3)
-        self.assertEqual(pipeline_class.return_value.run.call_args_list[0].args, ("15m",))
-        self.assertEqual(pipeline_class.return_value.run.call_args_list[1].args, ("1h",))
-        self.assertEqual(pipeline_class.return_value.run.call_args_list[2].args, ("24h",))
+        failed = backfill_features.run(
+            "1d",
+            start_days=50,
+            market_service=service,
+            klines_repo=klines_repo,
+            features_repo=features_repo,
+            now=self._NOW,
+        )
+        self.assertEqual(failed, [])
+        # Raw daily candles ARE persisted (permanent table, ML target).
+        klines_repo.upsert_klines.assert_called_once()
+        self.assertEqual(klines_repo.upsert_klines.call_args.args[0], "1d")
+        # Fetch window starts 300 bars before the target window.
+        start_str = service.iter_historical_klines.call_args.args[1]
+        self.assertEqual(start_str, "2025-08-16 00:00:00 UTC")  # now - 50d - 300d
+        saved_timeframe, saved = features_repo.save_features.call_args.args
+        self.assertEqual(saved_timeframe, "24h")
+        # Only rows inside the requested window, all past warm-up.
+        self.assertEqual(len(saved), 50)
+        self.assertTrue((saved["timestamp"] >= self._NOW - pd.Timedelta(days=50)).all())
+        self.assertTrue(saved["sma_200"].notna().all())
+
+    def test_intraday_backfill_never_persists_raw_klines(self):
+        raw = self._raw_daily_frame("ETHUSDT", periods=10, end=self._NOW)
+        service = MagicMock()
+        service.get_tracked_symbols.return_value = ["ETHUSDT"]
+        service.iter_historical_klines.side_effect = lambda *a, **kw: iter([("ETHUSDT", raw)])
+        klines_repo = MagicMock()
+        features_repo = MagicMock()
+        failed = backfill_features.run(
+            "1h",
+            start_days=5,
+            market_service=service,
+            klines_repo=klines_repo,
+            features_repo=features_repo,
+            now=self._NOW,
+        )
+        self.assertEqual(failed, [])
+        klines_repo.upsert_klines.assert_not_called()
+
+    def test_failed_symbol_does_not_abort_the_others(self):
+        raw = self._raw_daily_frame("BBBUSDT", periods=350, end=self._NOW)
+
+        def _iter(interval, start_str, symbols=None, **kwargs):
+            if symbols == ["AAAUSDT"]:
+                raise RuntimeError("binance down for this symbol")
+            return iter([("BBBUSDT", raw)])
+
+        service = MagicMock()
+        service.get_tracked_symbols.return_value = ["AAAUSDT", "BBBUSDT"]
+        service.iter_historical_klines.side_effect = _iter
+        features_repo = MagicMock()
+        failed = backfill_features.run(
+            "1d",
+            start_days=50,
+            market_service=service,
+            klines_repo=MagicMock(),
+            features_repo=features_repo,
+            now=self._NOW,
+        )
+        self.assertEqual(failed, ["AAAUSDT"])
+        features_repo.save_features.assert_called_once()
+
+    def test_unknown_interval_is_rejected(self):
+        with self.assertRaises(ValueError):
+            backfill_features.run("2h")
 
 
 class TrackedSymbolsTests(unittest.TestCase):
