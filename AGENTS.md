@@ -21,7 +21,7 @@ Só o `back-end/` existe, ainda em construção. Não há API HTTP ainda: `back-
 
 - `back-end/jobs.py` — dispatcher CLI dos jobs de ingestão (`five-minutes` → orderbook tickers, `hourly` → ticker 24h, `daily` → klines 15m/1h/1d; exit 0/1/2), rodando em Docker via `.github/workflows/crypto_jobs.yml` (com Cloudflare WARP para contornar geoblock da Binance). A lógica vive em `app/ingestion/`.
 - `back-end/app/feature_engineering/main.py` — orquestrador do pipeline de features: calcula indicadores técnicos por timeframe (15m/1h/24h) conforme `app/feature_engineering/config/features.yml` e aplica a política de retenção.
-- `back-end/historical_charge.py` — backfill histórico one-off de candles + recálculo de features.
+- `back-end/backfill_features.py` — backfill histórico em memória: busca klines da Binance por símbolo, calcula as features e persiste **só as features** (klines cruas apenas em `klines_1d`, que é permanente e guarda o target do ML). CLI: `--timeframe {15m,1h,1d}`, `--start-days`, `--symbols`. A lista fixa de símbolos vive em `back-end/app/feature_engineering/config/symbols.yml`.
 
 ### Arquitetura do back-end
 

@@ -3,7 +3,7 @@ retention:
   klines_15m: "7 days"
   klines_1h: "30 days"
   klines_1d: "permanent"           # Não deleta
-  ticker_24hr_history: "30 days"
+  ticker_24hr_history: "14 days"   # Maior tabela do banco; 14d bastam para o dashboard
   orderbook_tickers: "7 days"
   
   features_15m: "180 days"         # 6 meses
