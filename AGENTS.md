@@ -11,7 +11,7 @@ App de **forecasting de criptomoedas**. O projeto nasceu como um pipeline local 
 | Pipeline de coleta | Python 3.13 + `uv`, Docker | GitHub Actions (cron) | **Em produção** |
 | Feature engineering | Python (pandas, TA-Lib), Docker | GitHub Actions (diário, após coleta) | **Em produção** |
 | Banco de dados | Supabase (PostgreSQL) | Supabase Cloud | **Em produção** |
-| API REST | FastAPI (planejada) + autenticação | **VM** (não Render — docs antigas podem citar Render) | Planejada |
+| API REST | FastAPI + Supabase Auth (JWT/JWKS, RLS) | **VM** (não Render — docs antigas podem citar Render) | v1 implementada; deploy pendente |
 | ML / Forecasting | A definir (candidatos: Scikit-Learn, Prophet) | GitHub Actions / Runner | Planejado |
 | Front-end | **Vue + Nuxt + Tailwind** (não React) | Domínio grátis da VM Hostinger **ou** Vercel — ainda não decidido | Planejado |
 
@@ -28,6 +28,12 @@ Só o `back-end/` existe, ainda em construção. Não há API HTTP ainda: `back-
 Camadas (Clean Architecture / 3-Tier):
 
 ```
+main.py        → app FastAPI (create_app: CORS, routers, /health público)
+controllers/   → rotas /api/v1 (symbols, klines/{tf}, features/{tf}, tickers/24h) + deps.py
+                 (HTTPBearer → get_claims → client Supabase por request com JWT do usuário → RLS)
+auth/          → verificação local de JWT do Supabase Auth (JWKS ES256/RS256, fallback HS256 opcional)
+schemas/       → response models Pydantic (extra="ignore", indicadores nullable)
+core/          → Timeframe (vocabulário único 15m/1h/1d, alias 24h, nomes de tabela)
 clients/       → conexões externas (BinanceClient com call_with_retry + erros tipados, Supabase)
 services/      → transformação dos dados da Binance em DataFrames tipados (normalizador único de klines)
 ingestion/     → jobs de ingestão: fetch no service + upsert no repository (erros propagam)
@@ -50,6 +56,7 @@ uv sync                              # instalar dependências
 uv run pytest                        # rodar testes
 uv run python jobs.py daily          # rodar um job de ingestão localmente
 uv run python -m app.feature_engineering.main   # pipeline de features
+uv run fastapi dev                   # API (exige SUPABASE_PUBLISHABLE_KEY no .env)
 ```
 
 Configuração via `.env` (Pydantic Settings em `back-end/config.py`, lazy via `get_settings()`): `SUPABASE_URL`, `SUPABASE_KEY`, `BINANCE_API_KEY`, `BINANCE_API_SECRET`, `USE_TESTNET`, `BINANCE_PROXY` (opcional). Imports não têm side effects — env vars só são exigidas quando um componente conecta de fato; a suíte de testes roda offline sem `.env`.
