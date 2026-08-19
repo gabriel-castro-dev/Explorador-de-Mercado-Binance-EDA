@@ -207,8 +207,12 @@ SUPABASE_URL=https://seu-projeto.supabase.co
 SUPABASE_KEY=sua-service-role-key
 BINANCE_API_KEY=sua-api-key-da-binance
 BINANCE_API_SECRET=seu-secret-da-binance
-USE_TESTNET=True
 ```
+
+> Os dados de mercado vêm da Binance **real** por padrão (endpoints públicos —
+> as chaves não precisam de permissões especiais). `USE_TESTNET=True` existe
+> como opção, mas a testnet guarda ~2 semanas de histórico sintético e não
+> serve para o dataset de treino.
 
 ### 4. Rodando os jobs localmente
 
@@ -218,6 +222,25 @@ uv run python jobs.py hourly         # ticker 24h
 uv run python jobs.py daily          # klines 15m/1h/1d
 uv run python -m app.feature_engineering.main   # features + retenção
 ```
+
+#### Backfill histórico (one-off)
+
+Popula anos de features calculadas **em memória** a partir da Binance — só as
+features entram no banco (klines cruas apenas em `klines_1d`, permanente, que
+guarda o preço usado como target do ML). O warm-up dos indicadores (300 barras
+extras) é buscado e descartado automaticamente: nenhuma linha com `sma_200`
+nulo é gravada. A lista de símbolos vive em
+`app/feature_engineering/config/symbols.yml`.
+
+```bash
+uv run python backfill_features.py --timeframe 1d              # 5 anos
+uv run python backfill_features.py --timeframe 1h              # 720 dias
+uv run python backfill_features.py --timeframe 15m             # 175 dias
+uv run python backfill_features.py --timeframe 1d --symbols BTCUSDT  # retomar um símbolo
+```
+
+Os horizontes padrão cabem nas janelas de retenção e no free tier do Supabase
+(~240 MB no total para 20 símbolos).
 
 ### 5. Rodando a API localmente
 
