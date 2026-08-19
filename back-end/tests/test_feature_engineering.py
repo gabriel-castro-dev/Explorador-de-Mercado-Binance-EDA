@@ -465,3 +465,29 @@ class GetKlinesNormalizationTests(unittest.TestCase):
         self.assertIsNotNone(df["Open_Time"].dt.tz)
         self.assertEqual(str(df["Number_of_Trades"].dtype), "Int64")
         self.assertEqual(df["symbol"].iloc[0], "BTCUSDT")
+
+
+class RetentionCleanerTests(unittest.TestCase):
+    def _cleaner(self):
+        from app.feature_engineering.retention.cleaner import RetentionCleaner
+
+        repo = MagicMock()
+        return RetentionCleaner(repo), repo
+
+    def test_known_table_uses_registered_time_column(self):
+        cleaner, repo = self._cleaner()
+        cleaner.clean_table("orderbook_tickers", "7 days")
+        repo.delete_old_data.assert_called_once_with(
+            table_name="orderbook_tickers", time_column="fetched_at", interval="7 days"
+        )
+
+    def test_permanent_table_is_skipped(self):
+        cleaner, repo = self._cleaner()
+        cleaner.clean_table("klines_1d", "permanent")
+        repo.delete_old_data.assert_not_called()
+
+    def test_unregistered_table_raises_instead_of_silent_fallback(self):
+        cleaner, repo = self._cleaner()
+        with self.assertRaises(KeyError):
+            cleaner.clean_table("tabela_nova", "30 days")
+        repo.delete_old_data.assert_not_called()

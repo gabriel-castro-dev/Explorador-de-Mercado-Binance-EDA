@@ -41,6 +41,7 @@ class RetentionCleaner:
             interval: Retention interval (e.g., '30 days') or 'permanent' to skip.
 
         Raises:
+            KeyError: If the table has no registered timestamp column.
             Exception: If the retention RPC fails.
         """
         if interval.lower() == "permanent":
@@ -49,7 +50,14 @@ class RetentionCleaner:
             )
             return
 
-        time_column = self.TIMESTAMP_COLUMNS.get(table_name, "timestamp")
+        try:
+            time_column = self.TIMESTAMP_COLUMNS[table_name]
+        except KeyError:
+            raise KeyError(
+                f"Tabela '{table_name}' sem coluna de timestamp registrada em "
+                "TIMESTAMP_COLUMNS. Registre-a antes de configurar retenção "
+                "no features.yml."
+            ) from None
 
         try:
             self.repo.delete_old_data(
