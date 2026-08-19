@@ -56,6 +56,8 @@ Configuração via `.env` (Pydantic Settings em `back-end/config.py`, lazy via `
 
 Seams de injeção (preparação para FastAPI + Supabase Auth): `BaseRepository(supabase=None)`, `BinanceMarketService(client=None)`, `get_supabase_client(settings=None)` — controllers vão injetar um client Supabase por request carregando o JWT do usuário (RLS).
 
+Modelo de acesso no Supabase (migrations em `back-end/supabase/migrations/`, aplicadas em 2026-08-19): RLS ativo nas 9 tabelas de `public`; policy `authenticated_select` (`for select to authenticated using (true)`) em todas; `anon` sem grants nem policies (deny); escrita e a RPC `clean_old_data` só para `service_role` (o `SUPABASE_KEY` dos jobs). Event trigger `ensure_rls` habilita RLS automaticamente em toda tabela nova — ela nasce deny-all até receber uma policy explícita.
+
 ## Agent skills
 
 ### Issue tracker
