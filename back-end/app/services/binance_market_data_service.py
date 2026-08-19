@@ -234,41 +234,7 @@ class BinanceMarketService:
                     logger.error(f"Falha ao obter k-lines para {symbol}")
 
         if all_data:
-            columns = [
-                "Open_Time",
-                "Open",
-                "High",
-                "Low",
-                "Close",
-                "Volume",
-                "Close_Time",
-                "Quote_Asset_Volume",
-                "Number_of_Trades",
-                "Taker_Buy_Base_Asset_Volume",
-                "Taker_Buy_Quote_Asset_Volume",
-                "Ignore",
-                "symbol",
-            ]
-            df = pd.DataFrame(data=all_data, columns=columns)
-            df = df.drop(columns=["Ignore"])
-            df["Open_Time"] = pd.to_datetime(df["Open_Time"], unit="ms")
-            df["Close_Time"] = pd.to_datetime(df["Close_Time"], unit="ms")
-            df["Number_of_Trades"] = df["Number_of_Trades"].astype(int)
-
-            numeric_cols = [
-                "Open",
-                "High",
-                "Low",
-                "Close",
-                "Volume",
-                "Quote_Asset_Volume",
-                "Taker_Buy_Base_Asset_Volume",
-                "Taker_Buy_Quote_Asset_Volume",
-            ]
-
-            df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors="coerce")
-            df[numeric_cols] = df[numeric_cols].round(8)
-            df = df.dropna(subset=numeric_cols)
+            df = self._historical_rows_to_frame(all_data)
 
             logger.info(
                 f"Obtidas {len(df)} k-lines para {len(symbols)} símbolos ({interval})"
@@ -317,41 +283,7 @@ class BinanceMarketService:
                     logger.error(f"Falha ao obter k-lines históricas para {symbol}")
 
         if all_data:
-            columns = [
-                "Open_Time",
-                "Open",
-                "High",
-                "Low",
-                "Close",
-                "Volume",
-                "Close_Time",
-                "Quote_Asset_Volume",
-                "Number_of_Trades",
-                "Taker_Buy_Base_Asset_Volume",
-                "Taker_Buy_Quote_Asset_Volume",
-                "Ignore",
-                "symbol",
-            ]
-            df = pd.DataFrame(data=all_data, columns=columns)
-            df = df.drop(columns=["Ignore"])
-            df["Open_Time"] = pd.to_datetime(df["Open_Time"], unit="ms")
-            df["Close_Time"] = pd.to_datetime(df["Close_Time"], unit="ms")
-            df["Number_of_Trades"] = df["Number_of_Trades"].astype(int)
-
-            numeric_cols = [
-                "Open",
-                "High",
-                "Low",
-                "Close",
-                "Volume",
-                "Quote_Asset_Volume",
-                "Taker_Buy_Base_Asset_Volume",
-                "Taker_Buy_Quote_Asset_Volume",
-            ]
-
-            df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors="coerce")
-            df[numeric_cols] = df[numeric_cols].round(8)
-            df = df.dropna(subset=numeric_cols)
+            df = self._historical_rows_to_frame(all_data)
 
             logger.info(
                 f"Obtidas {len(df)} k-lines históricas para {len(symbols)} símbolos"
@@ -396,41 +328,7 @@ class BinanceMarketService:
                     logger.error(f"Falha ao gerar k-lines históricas para {symbol}")
 
         if all_data:
-            columns = [
-                "Open_Time",
-                "Open",
-                "High",
-                "Low",
-                "Close",
-                "Volume",
-                "Close_Time",
-                "Quote_Asset_Volume",
-                "Number_of_Trades",
-                "Taker_Buy_Base_Asset_Volume",
-                "Taker_Buy_Quote_Asset_Volume",
-                "Ignore",
-                "symbol",
-            ]
-            df = pd.DataFrame(data=all_data, columns=columns)
-            df = df.drop(columns=["Ignore"])
-            df["Open_Time"] = pd.to_datetime(df["Open_Time"], unit="ms")
-            df["Close_Time"] = pd.to_datetime(df["Close_Time"], unit="ms")
-            df["Number_of_Trades"] = df["Number_of_Trades"].astype(int)
-
-            numeric_cols = [
-                "Open",
-                "High",
-                "Low",
-                "Close",
-                "Volume",
-                "Quote_Asset_Volume",
-                "Taker_Buy_Base_Asset_Volume",
-                "Taker_Buy_Quote_Asset_Volume",
-            ]
-
-            df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors="coerce")
-            df[numeric_cols] = df[numeric_cols].round(8)
-            df = df.dropna(subset=numeric_cols)
+            df = self._historical_rows_to_frame(all_data)
 
             logger.info(
                 f"Geradas {len(df)} k-lines históricas para {len(symbols)} símbolos via generator"
