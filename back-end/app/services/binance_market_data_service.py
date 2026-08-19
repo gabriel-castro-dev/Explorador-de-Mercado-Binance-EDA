@@ -2,6 +2,7 @@ import logging
 from typing import Optional
 
 import pandas as pd
+
 from app.clients.binance_client import BinanceClient
 
 logger = logging.getLogger(__name__)
@@ -97,14 +98,12 @@ class BinanceMarketService:
             if isinstance(data, list) and len(data) > 0:
                 df = pd.DataFrame(data)
                 usdt_tickers = df[df["symbol"].str.endswith("USDT")].copy()
-                usdt_tickers["price"] = pd.to_numeric(
-                    usdt_tickers["price"], errors="coerce"
-                )
+                usdt_tickers["price"] = pd.to_numeric(usdt_tickers["price"], errors="coerce")
                 usdt_tickers["price"] = usdt_tickers["price"].round(2)
                 usdt_tickers = usdt_tickers.dropna(subset=["price"])
-                usdt_tickers = usdt_tickers.sort_values(
-                    by="price", ascending=False
-                ).reset_index(drop=True)
+                usdt_tickers = usdt_tickers.sort_values(by="price", ascending=False).reset_index(
+                    drop=True
+                )
                 logger.info(f"Obtidos {len(usdt_tickers)} tickers USDT")
                 return usdt_tickers
         else:
@@ -137,19 +136,15 @@ class BinanceMarketService:
                     "lastId",
                     "count",
                 ]
-                cols_to_numeric = [
-                    col for col in df.columns if col not in ignorar_colunas
-                ]
-                df[cols_to_numeric] = df[cols_to_numeric].apply(
-                    pd.to_numeric, errors="coerce"
-                )
+                cols_to_numeric = [col for col in df.columns if col not in ignorar_colunas]
+                df[cols_to_numeric] = df[cols_to_numeric].apply(pd.to_numeric, errors="coerce")
                 df[cols_to_numeric] = df[cols_to_numeric].round(8)
                 df = df.dropna(subset=cols_to_numeric)
                 df["openTime"] = pd.to_datetime(df["openTime"], unit="ms")
                 df["closeTime"] = pd.to_datetime(df["closeTime"], unit="ms")
-                df[["symbol", "firstId", "lastId"]] = df[
-                    ["symbol", "firstId", "lastId"]
-                ].astype(str)
+                df[["symbol", "firstId", "lastId"]] = df[["symbol", "firstId", "lastId"]].astype(
+                    str
+                )
                 df["count"] = df["count"].astype(int)
                 logger.info(f"Dados 24h obtidos para {len(symbols)} símbolos")
                 return df
@@ -236,9 +231,7 @@ class BinanceMarketService:
         if all_data:
             df = self._historical_rows_to_frame(all_data)
 
-            logger.info(
-                f"Obtidas {len(df)} k-lines para {len(symbols)} símbolos ({interval})"
-            )
+            logger.info(f"Obtidas {len(df)} k-lines para {len(symbols)} símbolos ({interval})")
             return df
         else:
             logger.error("Falha ao obter k-lines para os tickers USDT")
@@ -285,9 +278,7 @@ class BinanceMarketService:
         if all_data:
             df = self._historical_rows_to_frame(all_data)
 
-            logger.info(
-                f"Obtidas {len(df)} k-lines históricas para {len(symbols)} símbolos"
-            )
+            logger.info(f"Obtidas {len(df)} k-lines históricas para {len(symbols)} símbolos")
             return df
         else:
             logger.error("Falha ao obter k-lines históricas para os tickers USDT")
@@ -321,9 +312,7 @@ class BinanceMarketService:
                 if isinstance(data, list) and data:
                     for kline in data:
                         all_data.append(kline + [symbol])
-                    logger.info(
-                        f"K-lines históricas geradas para {symbol} via generator"
-                    )
+                    logger.info(f"K-lines históricas geradas para {symbol} via generator")
                 else:
                     logger.error(f"Falha ao gerar k-lines históricas para {symbol}")
 
@@ -337,8 +326,14 @@ class BinanceMarketService:
         else:
             logger.error("Falha ao gerar k-lines históricas para os tickers USDT")
             return pd.DataFrame()
-            
-    def iter_historical_klines(self, interval: str, start_str: Optional[str] = None, end_str: Optional[str] = None, batch_size: int = 500):
+
+    def iter_historical_klines(
+        self,
+        interval: str,
+        start_str: Optional[str] = None,
+        end_str: Optional[str] = None,
+        batch_size: int = 500,
+    ):
         """Yield normalized historical candles per symbol and batch."""
         symbols = self.get_top_20_tickers()["symbol"].tolist()
         for symbol in symbols:
@@ -359,11 +354,36 @@ class BinanceMarketService:
 
     @staticmethod
     def _historical_rows_to_frame(rows: list[list]) -> pd.DataFrame:
-        columns = ["Open_Time", "Open", "High", "Low", "Close", "Volume", "Close_Time", "Quote_Asset_Volume", "Number_of_Trades", "Taker_Buy_Base_Asset_Volume", "Taker_Buy_Quote_Asset_Volume", "Ignore", "symbol"]
+        columns = [
+            "Open_Time",
+            "Open",
+            "High",
+            "Low",
+            "Close",
+            "Volume",
+            "Close_Time",
+            "Quote_Asset_Volume",
+            "Number_of_Trades",
+            "Taker_Buy_Base_Asset_Volume",
+            "Taker_Buy_Quote_Asset_Volume",
+            "Ignore",
+            "symbol",
+        ]
         df = pd.DataFrame(rows, columns=columns).drop(columns=["Ignore"])
         df["Open_Time"] = pd.to_datetime(df["Open_Time"], unit="ms", utc=True)
         df["Close_Time"] = pd.to_datetime(df["Close_Time"], unit="ms", utc=True)
-        numeric_columns = ["Open", "High", "Low", "Close", "Volume", "Quote_Asset_Volume", "Taker_Buy_Base_Asset_Volume", "Taker_Buy_Quote_Asset_Volume"]
+        numeric_columns = [
+            "Open",
+            "High",
+            "Low",
+            "Close",
+            "Volume",
+            "Quote_Asset_Volume",
+            "Taker_Buy_Base_Asset_Volume",
+            "Taker_Buy_Quote_Asset_Volume",
+        ]
         df[numeric_columns] = df[numeric_columns].apply(pd.to_numeric, errors="coerce")
-        df["Number_of_Trades"] = pd.to_numeric(df["Number_of_Trades"], errors="coerce").astype("Int64")
+        df["Number_of_Trades"] = pd.to_numeric(df["Number_of_Trades"], errors="coerce").astype(
+            "Int64"
+        )
         return df.dropna(subset=["Open_Time", "Open", "High", "Low", "Close", "Volume"])

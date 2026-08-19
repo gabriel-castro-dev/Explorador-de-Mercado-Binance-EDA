@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 import pandas as pd
+
 from app.repositories.base import BaseRepository
 
 logger = logging.getLogger(__name__)
@@ -25,12 +26,8 @@ class FeaturesRepository(BaseRepository):
         sanitized = df.drop(columns=self._GENERATED_COLUMNS, errors="ignore")
         try:
             for start in range(0, len(sanitized), self._UPSERT_BATCH_SIZE):
-                payload = self._to_records(
-                    sanitized.iloc[start : start + self._UPSERT_BATCH_SIZE]
-                )
-                self.supabase.table(table).upsert(
-                    payload, on_conflict="symbol,timestamp"
-                ).execute()
+                payload = self._to_records(sanitized.iloc[start : start + self._UPSERT_BATCH_SIZE])
+                self.supabase.table(table).upsert(payload, on_conflict="symbol,timestamp").execute()
             logger.info("%s features salvas em %s.", len(sanitized), table)
         except Exception:
             logger.exception("Falha ao salvar features em %s.", table)

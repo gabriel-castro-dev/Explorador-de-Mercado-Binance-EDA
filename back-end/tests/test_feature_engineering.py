@@ -12,13 +12,13 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import historical_charge
-from config import get_settings
 from app.feature_engineering.pipelines.klines_pipeline import KlinesPipeline
 from app.feature_engineering.transforms.technical_indicators import (
     TechnicalIndicatorsTransform,
 )
 from app.repositories.features_repository import FeaturesRepository
 from app.services.binance_market_data_service import BinanceMarketService
+from config import get_settings
 
 
 class TechnicalIndicatorsTests(unittest.TestCase):
@@ -36,9 +36,7 @@ class TechnicalIndicatorsTests(unittest.TestCase):
         rsi = TechnicalIndicatorsTransform.calculate_rsi(df, 2)
         atr = TechnicalIndicatorsTransform.calculate_atr(df, 2)
         deviation = TechnicalIndicatorsTransform.calculate_avg_price_deviation(df, 2)
-        upper, middle, lower = TechnicalIndicatorsTransform.calculate_bollinger_bands(
-            df, 2
-        )
+        upper, middle, lower = TechnicalIndicatorsTransform.calculate_bollinger_bands(df, 2)
 
         self.assertTrue(pd.isna(sma.iloc[3]))
         self.assertEqual(ema.iloc[3], 100.0)
@@ -76,9 +74,7 @@ class KlinesPipelineTests(unittest.TestCase):
             .groupby(saved["symbol"], sort=False)
             .transform(lambda values: values.ewm(span=9, adjust=False).mean())
         )
-        pd.testing.assert_series_equal(
-            saved["macd_signal"], expected, check_names=False
-        )
+        pd.testing.assert_series_equal(saved["macd_signal"], expected, check_names=False)
 
 
 class FeaturesRepositoryTests(unittest.TestCase):
@@ -103,9 +99,7 @@ class FeaturesRepositoryTests(unittest.TestCase):
         df = pd.DataFrame(
             {
                 "symbol": ["BTCUSDT"] * 1001,
-                "timestamp": pd.date_range(
-                    "2026-01-01", periods=1001, freq="min", tz="UTC"
-                ),
+                "timestamp": pd.date_range("2026-01-01", periods=1001, freq="min", tz="UTC"),
                 "macd": [1.0] * 1001,
                 "bb_width": [1.0] * 1001,
             }
@@ -156,15 +150,9 @@ class HistoricalChargeTests(unittest.TestCase):
                 datetime(2026, 8, 9, tzinfo=timezone.utc),
             )
         self.assertEqual(klines_repo.upsert_klines.call_count, 3)
-        self.assertEqual(
-            pipeline_class.return_value.run.call_args_list[0].args, ("15m",)
-        )
-        self.assertEqual(
-            pipeline_class.return_value.run.call_args_list[1].args, ("1h",)
-        )
-        self.assertEqual(
-            pipeline_class.return_value.run.call_args_list[2].args, ("24h",)
-        )
+        self.assertEqual(pipeline_class.return_value.run.call_args_list[0].args, ("15m",))
+        self.assertEqual(pipeline_class.return_value.run.call_args_list[1].args, ("1h",))
+        self.assertEqual(pipeline_class.return_value.run.call_args_list[2].args, ("24h",))
 
 
 class HistoricalServiceTests(unittest.TestCase):
@@ -255,9 +243,7 @@ class JobsTests(unittest.TestCase):
             patch.object(jobs, "setup_logging"),
             patch.object(jobs, "BinanceMarketService"),
             patch.object(jobs, "TickersRepository"),
-            patch.object(
-                jobs, "ingest_orderbook_tickers", side_effect=RuntimeError("boom")
-            ),
+            patch.object(jobs, "ingest_orderbook_tickers", side_effect=RuntimeError("boom")),
         ):
             self.assertEqual(jobs.main(), 1)
 
@@ -300,11 +286,8 @@ class TickersIngestionTests(unittest.TestCase):
         self.assertEqual(ingest_orderbook_tickers(service, repo), 1)
         persisted = repo.upsert_orderbook_tickers.call_args.args[0]
         self.assertIn("bid_price", persisted.columns)
-        import re
 
-        self.assertRegex(
-            persisted["fetched_at"].iloc[0], r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$"
-        )
+        self.assertRegex(persisted["fetched_at"].iloc[0], r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
 
     def test_repository_errors_propagate(self):
         from app.ingestion.tickers import ingest_orderbook_tickers
@@ -336,9 +319,7 @@ class TickersRepositoryTests(unittest.TestCase):
         )
         self.assertEqual(count, 1)
         supabase.table.assert_called_once_with("ticker_24hr_history")
-        self.assertEqual(
-            builder.upsert.call_args.kwargs["on_conflict"], "symbol,open_time"
-        )
+        self.assertEqual(builder.upsert.call_args.kwargs["on_conflict"], "symbol,open_time")
 
     def test_upsert_orderbook_uses_conflict_key_and_propagates_errors(self):
         repo, supabase, builder = self._repo()
@@ -346,9 +327,7 @@ class TickersRepositoryTests(unittest.TestCase):
             pd.DataFrame({"symbol": ["BTCUSDT"], "fetched_at": ["2026-01-01 00:00:00"]})
         )
         supabase.table.assert_called_once_with("orderbook_tickers")
-        self.assertEqual(
-            builder.upsert.call_args.kwargs["on_conflict"], "symbol,fetched_at"
-        )
+        self.assertEqual(builder.upsert.call_args.kwargs["on_conflict"], "symbol,fetched_at")
         builder.execute.side_effect = RuntimeError("db down")
         with self.assertRaises(RuntimeError):
             repo.upsert_orderbook_tickers(pd.DataFrame({"symbol": ["X"]}))
@@ -378,9 +357,7 @@ class KlinesRepositoryTests(unittest.TestCase):
         self.assertEqual(repo.upsert_klines("15m", df), rows)
         supabase.table.assert_called_with("klines_15m")
         self.assertEqual(builder.upsert.call_count, 2)
-        self.assertEqual(
-            builder.upsert.call_args.kwargs["on_conflict"], "symbol,open_time"
-        )
+        self.assertEqual(builder.upsert.call_args.kwargs["on_conflict"], "symbol,open_time")
 
 
 class RetryHelperTests(unittest.TestCase):
@@ -389,9 +366,7 @@ class RetryHelperTests(unittest.TestCase):
 
         fn = MagicMock(side_effect=[RuntimeError("net"), RuntimeError("net"), [1]])
         sleep = MagicMock()
-        result = call_with_retry(
-            fn, retries=3, delay=5, context="teste", empty=[], sleep=sleep
-        )
+        result = call_with_retry(fn, retries=3, delay=5, context="teste", empty=[], sleep=sleep)
         self.assertEqual(result, [1])
         self.assertEqual(sleep.call_count, 2)
         sleep.assert_called_with(5)
@@ -404,9 +379,7 @@ class RetryHelperTests(unittest.TestCase):
 
         fn = MagicMock(side_effect=RuntimeError("APIError(code=-2015): denied"))
         with self.assertRaises(BinanceUnauthorizedError) as ctx:
-            call_with_retry(
-                fn, retries=3, delay=0, context="teste", sleep=MagicMock()
-            )
+            call_with_retry(fn, retries=3, delay=0, context="teste", sleep=MagicMock())
         self.assertIsInstance(ctx.exception, PermissionError)
         self.assertEqual(fn.call_count, 1)
 
@@ -418,9 +391,7 @@ class RetryHelperTests(unittest.TestCase):
 
         fn = MagicMock(side_effect=RuntimeError("APIError(code=-1121): bad symbol"))
         with self.assertRaises(BinanceInvalidSymbolError) as ctx:
-            call_with_retry(
-                fn, retries=3, delay=0, context="teste", sleep=MagicMock()
-            )
+            call_with_retry(fn, retries=3, delay=0, context="teste", sleep=MagicMock())
         self.assertIsInstance(ctx.exception, KeyError)
 
     def test_exhaustion_returns_empty_sentinel(self):

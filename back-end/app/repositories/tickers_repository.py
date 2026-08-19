@@ -3,6 +3,7 @@
 import logging
 
 import pandas as pd
+
 from app.repositories.base import BaseRepository
 
 logger = logging.getLogger(__name__)

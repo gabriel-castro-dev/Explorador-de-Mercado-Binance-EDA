@@ -3,6 +3,7 @@
 import logging
 
 import pandas as pd
+
 from app.repositories.klines_repository import KlinesRepository
 from app.services.binance_market_data_service import BinanceMarketService
 
