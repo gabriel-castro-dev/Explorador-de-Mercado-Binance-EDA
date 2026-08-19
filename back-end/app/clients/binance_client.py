@@ -309,7 +309,7 @@ class BinanceClient:
         )
 
     def get_historical_klines_generator(
-        self, symbol: str, interval: str, timestamp: str
+        self, symbol: str, interval: str, start_str: Optional[str] = None, end_str: Optional[str] = None # noqa: UP045
     ) -> Iterator[list]:
         """Stream historical klines with retry that covers the iteration.
 
@@ -331,12 +331,12 @@ class BinanceClient:
             BinanceInvalidSymbolError: If an invalid parameter is provided.
         """
         context = f"generator de k-lines históricas de {symbol}"
-        start: str | int = timestamp
+        start: str | int =  start_str
         failures = 0
         while True:
             try:
                 for row in self.client.get_historical_klines_generator(
-                    symbol=symbol, interval=interval, start_str=start
+                    symbol=symbol, interval=interval, start_str=start_str, end_str=end_str
                 ):
                     failures = 0
                     start = row[0] + 1
