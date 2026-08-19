@@ -45,12 +45,6 @@ features_15m:
   - name: "sma"
     params: { period: 20, column: "volume" }   # volume_sma_20
 
-  # Liquidez (Orderbook / Tickers)
-  - name: "bid_ask_spread"
-    params: {}
-  - name: "order_imbalance"
-    params: {}
-
 
 features_1h:
   - name: "sma"
@@ -81,10 +75,6 @@ features_1h:
     params: { column: "volume", period: 24 }   # Variação de volume em 24h (24 * 1h)
   - name: "sma"
     params: { period: 20, column: "volume" }
-  - name: "bid_ask_spread"
-    params: {}
-  - name: "order_imbalance"
-    params: {}
 
 
 features_24h:
@@ -116,7 +106,3 @@ features_24h:
     params: { column: "volume", period: 1 }    # Variação de volume diária
   - name: "sma"
     params: { period: 20, column: "volume" }
-  - name: "bid_ask_spread"
-    params: {}
-  - name: "order_imbalance"
-    params: {}
