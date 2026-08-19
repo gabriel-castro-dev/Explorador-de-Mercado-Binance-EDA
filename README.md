@@ -151,6 +151,7 @@ crypto-forecasting-app/
 │   │   ├── services/                # Transformação dos dados da Binance em DataFrames tipados
 │   │   ├── ingestion/               # Jobs de ingestão: fetch no service + upsert no repository
 │   │   ├── repositories/            # Persistência pura no Supabase
+│   │   ├── controllers/             # Rotas FastAPI + auth — próximo passo (em construção)
 │   │   └── feature_engineering/     # Pipeline offline de features + retenção
 │   │       ├── config/              # features.yml (features por timeframe + retenção)
 │   │       ├── pipelines/           # Orquestração por fonte (klines, orderbook, ticker)
@@ -169,7 +170,7 @@ crypto-forecasting-app/
 └── ml_models/                       # Modelos preditivos e métricas — planejado
 ```
 
-> `controllers/` (rotas FastAPI) entra junto com a API; `front-end/` e `ml_models/` ainda não existem no repo.
+> `controllers/`, `front-end/` e `ml_models/` ainda não existem no repo — são os próximos marcos.
 
 ## Instalação & Setup de Desenvolvimento
 
