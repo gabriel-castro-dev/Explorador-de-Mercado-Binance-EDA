@@ -38,7 +38,9 @@ jobs:
         working-directory: front-end
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6 # versão lida de packageManager (package.json)
+      - uses: pnpm/action-setup@v6 # versão lida de packageManager (front-end/package.json)
+        with:
+          package_json_file: front-end/package.json
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -72,6 +74,8 @@ jobs:
         working-directory: back-end
         run: uv run python scripts/export_openapi.py ../front-end/openapi/openapi.json
       - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: front-end/package.json
       - uses: actions/setup-node@v7
         with:
           node-version: 24
