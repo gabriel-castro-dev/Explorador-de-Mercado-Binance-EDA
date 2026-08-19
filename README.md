@@ -25,7 +25,7 @@ FastAPI (REST API)           Machine Learning (Treinamento/Métricas)
 │                              │
 └──────────────┬───────────────┘
 ▼
-React Dashboard (Vercel)
+Nuxt Dashboard (VM Hostinger ou Vercel)
 │
 ▼
 Usuário
@@ -37,9 +37,9 @@ Usuário
 | :--- | :--- | :--- | :--- |
 | **Pipeline de Coleta** | Python (`uv`) | Worker diário para ingestão, validação de candles inéditos e registro de logs. | GitHub Actions |
 | **Banco de Dados** | Supabase | PostgreSQL persistente para séries históricas, indicadores, previsões e versionamento de modelos. | Supabase Cloud |
-| **Back-end** | FastAPI | Disponibilização de endpoints REST, documentação Swagger, cálculo de indicadores técnicos em tempo real e entrega de previsões. | Render |
+| **Back-end** | FastAPI *(em construção)* | Disponibilização de endpoints REST, autenticação, documentação Swagger, cálculo de indicadores técnicos em tempo real e entrega de previsões. | VM |
 | **Machine Learning**| Scikit-Learn / Prophet | Scripts de treinamento (semanal/mensal) e geração de projeções diárias de preços. | GitHub Actions / Runner |
-| **Front-end** | React | Dashboard interativo para comparação de ativos, gráficos temporais e acompanhamento de performance dos modelos. | Vercel |
+| **Front-end** | Vue + Nuxt + Tailwind | Dashboard interativo para comparação de ativos, gráficos temporais e acompanhamento de performance dos modelos. | Domínio grátis da VM Hostinger ou Vercel (a definir) |
 
 ---
 
@@ -49,6 +49,8 @@ Usuário
 * **Gerenciador de Pacotes Python:** `uv` (Fast Python package installer & resolver)
 * **Validação de Ambiente:** Pydantic Settings (Gerenciamento de tipos via `.env`)
 * **Arquitetura do Código (Back-end):** Clean Architecture / 3-Tier (Split entre `Clients`, `Repositories`, `Services` e `Controllers`)
+* **Front-end (planejado):** Vue 3, Nuxt e Tailwind CSS
+* **Autenticação (planejada):** Controle de acesso à API e ao dashboard via Supabase Auth
 * **Design Patterns:** Retry Pattern (Resiliência de conexões com a API), e Injeção de Dependências.
 
 ---
@@ -149,7 +151,7 @@ crypto-market-platform/
 │   ├── main.py                      # Inicialização do servidor FastAPI
 │   ├── config.py                    # Classe de Settings Pydantic
 │   └── pyproject.toml               # Dependências da API via 'uv'
-├── front-end/                       # Dashboard Interativo (React)
+├── front-end/                       # Dashboard Interativo (Vue/Nuxt) — planejado
 ├── pipeline_coleta/                 # Scripts isolados do Worker de Ingestão
 └── ml_models/                       # Modelos preditivos, métricas e notebooks
 ```
