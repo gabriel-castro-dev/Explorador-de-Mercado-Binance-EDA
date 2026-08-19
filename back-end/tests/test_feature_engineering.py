@@ -247,6 +247,20 @@ class BackfillFeaturesTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             backfill_features.run("2h")
 
+    def test_symbols_are_seeded_before_any_upsert(self):
+        from app.repositories.symbols_repository import SymbolsRepository
+
+        builder = MagicMock()
+        builder.upsert.return_value = builder
+        supabase = MagicMock()
+        supabase.table.return_value = builder
+        SymbolsRepository(supabase=supabase).ensure_symbols(["BTCUSDT", "ETHUSDT"])
+        supabase.table.assert_called_with("symbols")
+        payload = builder.upsert.call_args.args[0]
+        self.assertEqual(payload, [{"symbol": "BTCUSDT"}, {"symbol": "ETHUSDT"}])
+        self.assertEqual(builder.upsert.call_args.kwargs["on_conflict"], "symbol")
+        self.assertTrue(builder.upsert.call_args.kwargs["ignore_duplicates"])
+
 
 class TrackedSymbolsTests(unittest.TestCase):
     def test_versioned_config_is_loaded_normalized(self):
