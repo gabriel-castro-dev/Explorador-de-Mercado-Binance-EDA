@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 class KlinesRepository(BaseRepository):
     _BATCH_SIZE = 500
+    _READ_PAGE_SIZE = 1000
     _COLUMN_MAP = {
         "Open_Time": "open_time",
         "Open": "open",
@@ -52,14 +53,32 @@ class KlinesRepository(BaseRepository):
     )
 
     def get_latest_klines(self, timeframe: str) -> pd.DataFrame:
-        response = (
-            self.supabase.table(f"klines_{timeframe}")
-            .select("*")
-            .order("symbol")
-            .order("open_time")
-            .execute()
-        )
-        return pd.DataFrame(response.data)
+        """Read the whole candle table, paginating past the PostgREST row cap.
+
+        PostgREST truncates unbounded selects at the project's max-rows
+        setting, so a single request silently drops every symbol after the
+        cutoff. Paging with ``range`` keeps the read complete regardless of
+        table size.
+        """
+        pages: list[list[dict]] = []
+        offset = 0
+        while True:
+            response = (
+                self.supabase.table(f"klines_{timeframe}")
+                .select("*")
+                .order("symbol")
+                .order("open_time")
+                .range(offset, offset + self._READ_PAGE_SIZE - 1)
+                .execute()
+            )
+            page = response.data
+            if page:
+                pages.append(page)
+            if len(page) < self._READ_PAGE_SIZE:
+                break
+            offset += self._READ_PAGE_SIZE
+        rows = [row for page in pages for row in page]
+        return pd.DataFrame(rows)
 
     def query_klines(
         self,
@@ -84,7 +103,7 @@ class KlinesRepository(BaseRepository):
         return query.execute().data
 
     def upsert_klines(self, interval: str, df: pd.DataFrame) -> int:
-        prepared = self._prepare_klines(df)
+        prepared = self.normalize_klines(df)
         for start in range(0, len(prepared), self._BATCH_SIZE):
             self.supabase.table(f"klines_{interval}").upsert(
                 self._to_records(prepared.iloc[start : start + self._BATCH_SIZE]),
@@ -93,9 +112,15 @@ class KlinesRepository(BaseRepository):
         logger.info("%s klines persistidos em klines_%s.", len(prepared), interval)
         return len(prepared)
 
-    def _prepare_klines(self, df: pd.DataFrame) -> pd.DataFrame:
+    @classmethod
+    def normalize_klines(cls, df: pd.DataFrame) -> pd.DataFrame:
+        """Normalize raw Binance kline columns to the database naming/dtypes.
+
+        Pure classmethod so callers that never persist candles (e.g. the
+        in-memory historical backfill) can reuse the exact same contract.
+        """
         prepared = (
-            df.rename(columns=self._COLUMN_MAP)
+            df.rename(columns=cls._COLUMN_MAP)
             .drop(columns=["Ignore", "interval"], errors="ignore")
             .copy()
         )
@@ -113,7 +138,7 @@ class KlinesRepository(BaseRepository):
         for column in ("open_time", "close_time"):
             if column in prepared.columns:
                 prepared[column] = pd.to_datetime(prepared[column], errors="coerce", utc=True)
-        for column in self._NUMERIC_COLUMNS:
+        for column in cls._NUMERIC_COLUMNS:
             if column in prepared.columns:
                 prepared[column] = pd.to_numeric(prepared[column], errors="coerce")
         if "number_of_trades" in prepared.columns:
@@ -124,7 +149,7 @@ class KlinesRepository(BaseRepository):
             subset=["symbol", "open_time", "open", "high", "low", "close", "volume"]
         )
         return prepared.reindex(
-            columns=[column for column in self._COLUMNS if column in prepared.columns]
+            columns=[column for column in cls._COLUMNS if column in prepared.columns]
         )
 
     @staticmethod

@@ -11,7 +11,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import historical_charge
+import backfill_features
 from app.feature_engineering.pipelines.klines_pipeline import KlinesPipeline
 from app.feature_engineering.transforms.technical_indicators import (
     TechnicalIndicatorsTransform,
@@ -64,8 +64,12 @@ class KlinesPipelineTests(unittest.TestCase):
         klines_repo = MagicMock()
         klines_repo.get_latest_klines.return_value = candles
         features_repo = MagicMock()
-        KlinesPipeline(klines_repo, features_repo).run("15m")
+        # Bypass the warm-up filter: this fixture is too short for sma_200 and
+        # the subject under test is the MACD calculation, not the filtering.
+        with patch.object(KlinesPipeline, "_drop_warmup_rows", staticmethod(lambda df, tf: df)):
+            KlinesPipeline(klines_repo, features_repo).run("15m")
         saved = features_repo.save_features.call_args.args[1]
+        self.assertFalse(saved.empty)
         self.assertTrue(saved["macd_signal"].notna().all())
         self.assertNotIn("macd", saved.columns)
         self.assertNotIn("macd_histogram", saved.columns)
@@ -75,6 +79,33 @@ class KlinesPipelineTests(unittest.TestCase):
             .transform(lambda values: values.ewm(span=9, adjust=False).mean())
         )
         pd.testing.assert_series_equal(saved["macd_signal"], expected, check_names=False)
+
+    def test_warmup_rows_without_sma200_are_not_persisted(self):
+        periods_a, periods_b = 205, 3
+        candles = pd.DataFrame(
+            {
+                "symbol": ["A"] * periods_a + ["B"] * periods_b,
+                "open_time": list(
+                    pd.date_range("2026-01-01", periods=periods_a, freq="h", tz="UTC")
+                )
+                + list(pd.date_range("2026-01-01", periods=periods_b, freq="h", tz="UTC")),
+                "open": [1.0] * (periods_a + periods_b),
+                "high": [2.0] * (periods_a + periods_b),
+                "low": [0.5] * (periods_a + periods_b),
+                "close": [float(i % 7 + 1) for i in range(periods_a + periods_b)],
+                "volume": [1.0] * (periods_a + periods_b),
+            }
+        )
+        klines_repo = MagicMock()
+        klines_repo.get_latest_klines.return_value = candles
+        features_repo = MagicMock()
+        KlinesPipeline(klines_repo, features_repo).run("15m")
+        saved = features_repo.save_features.call_args.args[1]
+        # Symbol A: sma_200 exists from the 200th candle on -> 205 - 199 = 6 rows.
+        # Symbol B: only 3 candles, pure warm-up -> nothing persisted.
+        self.assertEqual(len(saved), periods_a - 199)
+        self.assertEqual(set(saved["symbol"]), {"A"})
+        self.assertTrue(saved["sma_200"].notna().all())
 
 
 class FeaturesRepositoryTests(unittest.TestCase):
@@ -123,36 +154,137 @@ class FeaturesRepositoryTests(unittest.TestCase):
         )
 
 
-class HistoricalChargeTests(unittest.TestCase):
-    def test_historical_charge_streams_batches_then_runs_features(self):
-        batch = pd.DataFrame(
+class BackfillFeaturesTests(unittest.TestCase):
+    _NOW = datetime(2026, 8, 1, tzinfo=timezone.utc)
+
+    @staticmethod
+    def _raw_daily_frame(symbol, periods, end):
+        start = end - pd.Timedelta(days=periods)
+        times = pd.date_range(start, periods=periods, freq="D", tz="UTC")
+        return pd.DataFrame(
             {
-                "symbol": ["BTCUSDT"],
-                "Open_Time": [pd.Timestamp("2026-01-01", tz="UTC")],
-                "Open": [1.0],
-                "High": [2.0],
-                "Low": [0.5],
-                "Close": [1.5],
-                "Volume": [3.0],
+                "symbol": [symbol] * periods,
+                "Open_Time": times,
+                "Open": [1.0] * periods,
+                "High": [2.0] * periods,
+                "Low": [0.5] * periods,
+                "Close": [float(i % 7 + 1) for i in range(periods)],
+                "Volume": [3.0] * periods,
             }
         )
+
+    def test_1d_persists_raw_klines_and_only_windowed_features(self):
+        raw = self._raw_daily_frame("BTCUSDT", periods=350, end=self._NOW)
         service = MagicMock()
-        service.iter_historical_klines.side_effect = lambda interval, start: iter(
-            [("BTCUSDT", batch)]
-        )
+        service.get_tracked_symbols.return_value = ["BTCUSDT"]
+        service.iter_historical_klines.side_effect = lambda *a, **kw: iter([("BTCUSDT", raw)])
         klines_repo = MagicMock()
         features_repo = MagicMock()
-        with patch.object(historical_charge, "KlinesPipeline") as pipeline_class:
-            historical_charge.run(
+        failed = backfill_features.run(
+            "1d",
+            start_days=50,
+            market_service=service,
+            klines_repo=klines_repo,
+            features_repo=features_repo,
+            now=self._NOW,
+        )
+        self.assertEqual(failed, [])
+        # Raw daily candles ARE persisted (permanent table, ML target).
+        klines_repo.upsert_klines.assert_called_once()
+        self.assertEqual(klines_repo.upsert_klines.call_args.args[0], "1d")
+        # Fetch window starts 300 bars before the target window.
+        start_str = service.iter_historical_klines.call_args.args[1]
+        self.assertEqual(start_str, "2025-08-16 00:00:00 UTC")  # now - 50d - 300d
+        saved_timeframe, saved = features_repo.save_features.call_args.args
+        self.assertEqual(saved_timeframe, "24h")
+        # Only rows inside the requested window, all past warm-up.
+        self.assertEqual(len(saved), 50)
+        self.assertTrue((saved["timestamp"] >= self._NOW - pd.Timedelta(days=50)).all())
+        self.assertTrue(saved["sma_200"].notna().all())
+
+    def test_intraday_backfill_never_persists_raw_klines(self):
+        raw = self._raw_daily_frame("ETHUSDT", periods=10, end=self._NOW)
+        service = MagicMock()
+        service.get_tracked_symbols.return_value = ["ETHUSDT"]
+        service.iter_historical_klines.side_effect = lambda *a, **kw: iter([("ETHUSDT", raw)])
+        klines_repo = MagicMock()
+        features_repo = MagicMock()
+        failed = backfill_features.run(
+            "1h",
+            start_days=5,
+            market_service=service,
+            klines_repo=klines_repo,
+            features_repo=features_repo,
+            now=self._NOW,
+        )
+        self.assertEqual(failed, [])
+        klines_repo.upsert_klines.assert_not_called()
+
+    def test_failed_symbol_does_not_abort_the_others(self):
+        raw = self._raw_daily_frame("BBBUSDT", periods=350, end=self._NOW)
+
+        def _iter(interval, start_str, symbols=None, **kwargs):
+            if symbols == ["AAAUSDT"]:
+                raise RuntimeError("binance down for this symbol")
+            return iter([("BBBUSDT", raw)])
+
+        service = MagicMock()
+        service.get_tracked_symbols.return_value = ["AAAUSDT", "BBBUSDT"]
+        service.iter_historical_klines.side_effect = _iter
+        features_repo = MagicMock()
+        failed = backfill_features.run(
+            "1d",
+            start_days=50,
+            market_service=service,
+            klines_repo=MagicMock(),
+            features_repo=features_repo,
+            now=self._NOW,
+        )
+        self.assertEqual(failed, ["AAAUSDT"])
+        features_repo.save_features.assert_called_once()
+
+    def test_unknown_interval_is_rejected(self):
+        with self.assertRaises(ValueError):
+            backfill_features.run("2h")
+
+
+class TrackedSymbolsTests(unittest.TestCase):
+    def test_versioned_config_is_loaded_normalized(self):
+        from app.core.symbols import load_tracked_symbols
+
+        load_tracked_symbols.cache_clear()
+        symbols = load_tracked_symbols()
+        self.assertEqual(len(symbols), 20)
+        self.assertEqual(len(set(symbols)), 20)
+        self.assertEqual(symbols[0], "BTCUSDT")
+        self.assertTrue(all(s == s.upper() and s.endswith("USDT") for s in symbols))
+
+    def test_service_prefers_fixed_list_over_dynamic_top20(self):
+        service = BinanceMarketService(client=MagicMock())
+        with (
+            patch(
+                "app.services.binance_market_data_service.load_tracked_symbols",
+                return_value=("BTCUSDT", "ETHUSDT"),
+            ),
+            patch.object(service, "get_top_20_tickers") as top20,
+        ):
+            self.assertEqual(service.get_tracked_symbols(), ["BTCUSDT", "ETHUSDT"])
+        top20.assert_not_called()
+
+    def test_service_falls_back_to_dynamic_top20_without_config(self):
+        service = BinanceMarketService(client=MagicMock())
+        with (
+            patch(
+                "app.services.binance_market_data_service.load_tracked_symbols",
+                return_value=(),
+            ),
+            patch.object(
                 service,
-                klines_repo,
-                features_repo,
-                datetime(2026, 8, 9, tzinfo=timezone.utc),
-            )
-        self.assertEqual(klines_repo.upsert_klines.call_count, 3)
-        self.assertEqual(pipeline_class.return_value.run.call_args_list[0].args, ("15m",))
-        self.assertEqual(pipeline_class.return_value.run.call_args_list[1].args, ("1h",))
-        self.assertEqual(pipeline_class.return_value.run.call_args_list[2].args, ("24h",))
+                "get_top_20_tickers",
+                return_value=pd.DataFrame({"symbol": ["XRPUSDT"]}),
+            ),
+        ):
+            self.assertEqual(service.get_tracked_symbols(), ["XRPUSDT"])
 
 
 class HistoricalServiceTests(unittest.TestCase):
@@ -359,6 +491,43 @@ class KlinesRepositoryTests(unittest.TestCase):
         self.assertEqual(builder.upsert.call_count, 2)
         self.assertEqual(builder.upsert.call_args.kwargs["on_conflict"], "symbol,open_time")
 
+    def test_get_latest_klines_paginates_past_postgrest_row_cap(self):
+        from app.repositories.klines_repository import KlinesRepository
+
+        page_size = KlinesRepository._READ_PAGE_SIZE
+        full_page = [{"symbol": "AUSDT", "open_time": str(i)} for i in range(page_size)]
+        partial_page = [{"symbol": "ZUSDT", "open_time": "x"}] * 5
+        builder = MagicMock()
+        builder.select.return_value = builder
+        builder.order.return_value = builder
+        builder.range.return_value = builder
+        builder.execute.side_effect = [
+            MagicMock(data=full_page),
+            MagicMock(data=partial_page),
+        ]
+        supabase = MagicMock()
+        supabase.table.return_value = builder
+        df = KlinesRepository(supabase=supabase).get_latest_klines("15m")
+        self.assertEqual(len(df), page_size + 5)
+        self.assertEqual(
+            [call.args for call in builder.range.call_args_list],
+            [(0, page_size - 1), (page_size, 2 * page_size - 1)],
+        )
+
+    def test_get_latest_klines_single_page_stops_after_one_request(self):
+        from app.repositories.klines_repository import KlinesRepository
+
+        builder = MagicMock()
+        builder.select.return_value = builder
+        builder.order.return_value = builder
+        builder.range.return_value = builder
+        builder.execute.side_effect = [MagicMock(data=[{"symbol": "AUSDT"}])]
+        supabase = MagicMock()
+        supabase.table.return_value = builder
+        df = KlinesRepository(supabase=supabase).get_latest_klines("1h")
+        self.assertEqual(len(df), 1)
+        self.assertEqual(builder.execute.call_count, 1)
+
 
 class RetryHelperTests(unittest.TestCase):
     def test_returns_value_after_transient_failures_and_sleeps(self):
@@ -440,11 +609,7 @@ class GetKlinesNormalizationTests(unittest.TestCase):
         client = MagicMock()
         client.get_klines.return_value = [self._RAW_KLINE]
         service = BinanceMarketService(client=client)
-        with patch.object(
-            service,
-            "get_top_20_tickers",
-            return_value=pd.DataFrame({"symbol": ["BTCUSDT"]}),
-        ):
+        with patch.object(service, "get_tracked_symbols", return_value=["BTCUSDT"]):
             df = service.get_klines("1h")
         self.assertEqual(len(df), 1)
         expected_columns = {

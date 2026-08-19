@@ -162,7 +162,7 @@ crypto-forecasting-app/
 │   │       └── retention/           # Limpeza programada por retenção
 │   ├── tests/                       # Suíte pytest (offline, sem .env)
 │   ├── jobs.py                      # Dispatcher CLI dos jobs de coleta
-│   ├── historical_charge.py         # Backfill histórico de candles
+│   ├── backfill_features.py         # Backfill histórico em memória (persiste só features)
 │   ├── main.py                      # Script de verificação de conectividade com a Binance
 │   ├── config.py                    # Settings Pydantic (get_settings lazy)
 │   ├── Dockerfile.jobs              # Imagem dos jobs de coleta
