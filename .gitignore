@@ -41,18 +41,18 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
+back-end/**/build/
+back-end/**/develop-eggs/
+back-end/**/dist/
+back-end/**/downloads/
+back-end/**/eggs/
 .eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
+back-end/**/lib/
+back-end/**/lib64/
+back-end/**/parts/
+back-end/**/sdist/
+back-end/**/var/
+back-end/**/wheels/
 *.egg-info/
 .installed.cfg
 *.egg
@@ -76,7 +76,7 @@ Thumbs.db
 .mypy_cache/
 .dmypy.json
 dmypy.json
-*.json
+back-end/**/*.json
 *.bak
 *.tmp
 
@@ -85,3 +85,12 @@ dmypy.json
 # ============================================================================
 
 *debug_jobs.py
+
+# ============================================================================
+# FRONT-END (Nuxt) — detalhes em front-end/.gitignore
+# ============================================================================
+node_modules/
+front-end/.nuxt/
+front-end/.output/
+front-end/.data/
+front-end/dist/

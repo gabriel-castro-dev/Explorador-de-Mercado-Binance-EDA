@@ -13,11 +13,11 @@ App de **forecasting de criptomoedas**. O projeto nasceu como um pipeline local 
 | Banco de dados | Supabase (PostgreSQL) | Supabase Cloud | **Em produção** |
 | API REST | FastAPI + Supabase Auth (JWT/JWKS, RLS) | **VM** (não Render — docs antigas podem citar Render) | v1 implementada; deploy pendente |
 | ML / Forecasting | A definir (candidatos: Scikit-Learn, Prophet) | GitHub Actions / Runner | Planejado |
-| Front-end | **Vue + Nuxt + Tailwind** (não React) | Domínio grátis da VM Hostinger **ou** Vercel — ainda não decidido | Planejado |
+| Front-end | **Vue 3 + Nuxt 4 (SPA estática) + Nuxt UI v4/Tailwind v4 + Lightweight Charts v5** (não React) | Estático: Caddy na VM Hostinger **ou** Vercel — ainda não decidido | v1 funcional em `front-end/`; deploy pendente |
 
 ### Estado atual (2026-08)
 
-Só o `back-end/` existe, ainda em construção. Não há API HTTP ainda: `back-end/main.py` é apenas um script de verificação de conectividade com a Binance. Os pontos de entrada reais são:
+`back-end/` (jobs, features, API FastAPI v1) e `front-end/` (dashboard Nuxt) existem. `back-end/main.py` é apenas um script de verificação de conectividade com a Binance; a API é `back-end/app/main.py`. Os pontos de entrada reais são:
 
 - `back-end/jobs.py` — dispatcher CLI dos jobs de ingestão (`five-minutes` → orderbook tickers, `hourly` → ticker 24h, `daily` → klines 15m/1h/1d; exit 0/1/2), rodando em Docker via `.github/workflows/crypto_jobs.yml` (com Cloudflare WARP para contornar geoblock da Binance). A lógica vive em `app/ingestion/`.
 - `back-end/app/feature_engineering/main.py` — orquestrador do pipeline de features: calcula indicadores técnicos por timeframe (15m/1h/24h) conforme `app/feature_engineering/config/features.yml` e aplica a política de retenção.
@@ -64,6 +64,31 @@ Configuração via `.env` (Pydantic Settings em `back-end/config.py`, lazy via `
 Seams de injeção (preparação para FastAPI + Supabase Auth): `BaseRepository(supabase=None)`, `BinanceMarketService(client=None)`, `get_supabase_client(settings=None)` — controllers vão injetar um client Supabase por request carregando o JWT do usuário (RLS).
 
 Modelo de acesso no Supabase (migrations em `back-end/supabase/migrations/`, aplicadas em 2026-08-19): RLS ativo nas 9 tabelas de `public`; policy `authenticated_select` (`for select to authenticated using (true)`) em todas; `anon` sem grants nem policies (deny); escrita e a RPC `clean_old_data` só para `service_role` (o `SUPABASE_KEY` dos jobs). Event trigger `ensure_rls` habilita RLS automaticamente em toda tabela nova — ela nasce deny-all até receber uma policy explícita.
+
+### Arquitetura do front-end (`front-end/`, Nuxt 4 — diretório `app/`)
+
+SPA estática (`ssr: false`; ADR-0001): nenhum dado é pré-renderizado; a sessão Supabase vive só no navegador (supabase-js, fluxo implícito, `@nuxtjs/supabase` com `useSsrCookies: false`); a API recebe `Authorization: Bearer` (ADR-0003). Regra: nada de `window`/`localStorage` fora de `onMounted`/plugins `.client` (preserva migração futura para híbrido).
+
+```
+app/
+  pages/        login · signup · confirm-email · confirm (callback) · forgot-password · reset-password · index (dashboard) · mercado
+  layouts/      auth (card) · default (header + nav + barra inferior mobile)
+  middleware/   guest (logado → /); o guard global vem do módulo supabase (redirectOptions)
+  plugins/      auth-hash.client (captura #access_token&type= antes do supabase-js limpar o hash)
+  composables/  useApi (openapi-fetch tipado; 401 → refreshSession → retry → signOut + /login?reason=expired)
+                useMarketData (useSymbols/useKlines/useFeatures/useTickers24h via useAsyncData com chave reativa)
+                useDashboardQuery (symbol/tf na URL) · useIndicatorPrefs (localStorage) · useFreshness (selo fresh/stale)
+                useAuthActions (mensagens genéricas da ux-spec) · useUiState
+  components/   SymbolSelector · TimeframeToggle · SnapshotBadge · chart/{ChartPanel,CandlestickChart.client,ChartSwatch}
+                IndicatorToggles · Summary24hStrip · Tickers24hTable · MarketListMobile · EmptyState/ErrorState/ChartSkeleton · auth/*
+  utils/        constants (timeframes, INDICATOR_DEFS com cores/traços) · format (pt-BR, UTC, "há X") · api-errors · chart-mapping · tickers
+  types/        openapi.d.ts (GERADO por `pnpm api:types` — nunca editar) · api.ts (aliases Kline, FeatureRow, Ticker24h…)
+  assets/css/   main.css — tokens de design light/dark (docs/design/tokens.md), utilitários num/eyebrow/text-up/text-down
+```
+
+Contrato da API: `front-end/openapi/openapi.json` é exportado por `back-end/scripts/export_openapi.py`; o job `openapi-types` do CI falha se o JSON ou `openapi.d.ts` ficarem para trás. Respostas são newest-first (o mapping reverte), indicadores `null` viram gaps (`WhitespaceData`), `detail` é string no 401 e array no 422, 5xx é texto — tudo normalizado em `utils/api-errors.ts`.
+
+Comandos: `cd front-end && pnpm install && pnpm dev` (precisa de `.env` — ver `.env.example`; só a **publishable key**); `pnpm lint && pnpm typecheck && pnpm test`; `pnpm generate` (estático em `.output/public`). Gráfico: Lightweight Charts v5 (`addSeries`, panes via `paneIndex`, `setStretchFactor`), sempre client-only (`.client.vue` + `<ClientOnly>`).
 
 ### Roadmap
 
