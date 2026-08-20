@@ -32,6 +32,7 @@ import pandas as pd
 from app.feature_engineering.pipelines.klines_pipeline import KlinesPipeline
 from app.repositories.features_repository import FeaturesRepository
 from app.repositories.klines_repository import KlinesRepository
+from app.repositories.symbols_repository import SymbolsRepository
 from app.services.binance_market_data_service import BinanceMarketService
 from config import setup_logging
 
@@ -121,6 +122,9 @@ def run(
     reference = now or datetime.now(timezone.utc)
     target_start = reference - timedelta(days=start_days or _DEFAULT_START_DAYS[interval])
     symbols = symbols or market_service.get_tracked_symbols()
+    # klines/features tables have an FK to symbols; only the ticker ingestion
+    # auto-inserts them, so the backfill seeds the reference table itself.
+    SymbolsRepository(supabase=features_repo.supabase).ensure_symbols(symbols)
 
     failed: list[str] = []
     for position, symbol in enumerate(symbols, start=1):
