@@ -58,9 +58,7 @@ def _snapshots(n=6):
 
 def _service(reading_text="Texto do dia.", snapshots=None, firestore_stored=None):
     tickers = MagicMock()
-    tickers.get_latest_24h_snapshots.return_value = (
-        _snapshots() if snapshots is None else snapshots
-    )
+    tickers.get_latest_24h_snapshots.return_value = _snapshots() if snapshots is None else snapshots
     features = MagicMock()
     features.query_features.return_value = [{"atr_14": 4.2}]
 

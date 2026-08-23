@@ -108,9 +108,7 @@ class InsightsService:
             f"Ativos acompanhados: {len(rows)}. Subiram nas últimas 24 horas: {ups}. "
             f"Caíram: {len(rows) - ups}.",
             "Maiores variações de preço em 24 horas: "
-            + "; ".join(
-                f"{s['symbol']} {_fmt(s['price_change_percent'])}%" for s in movers
-            )
+            + "; ".join(f"{s['symbol']} {_fmt(s['price_change_percent'])}%" for s in movers)
             + ".",
         ]
         if volumes:
@@ -179,9 +177,7 @@ class InsightsService:
 
             settings = get_settings()
             models = [
-                m
-                for m in (settings.OPENROUTER_MODEL, settings.OPENROUTER_FALLBACK_MODEL)
-                if m
+                m for m in (settings.OPENROUTER_MODEL, settings.OPENROUTER_FALLBACK_MODEL) if m
             ]
             context = self.build_context()
             try:
