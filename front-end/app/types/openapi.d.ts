@@ -47,6 +47,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Preferences
+         * @description Preferências do usuário autenticado.
+         *
+         *     Um usuário que nunca salvou nada recebe os valores padrão (200, não 404),
+         *     para o app abrir sem tratamento especial na primeira visita. O e-mail é
+         *     somente leitura e vem do token do Supabase, não do Firestore.
+         */
+        get: operations["get_preferences_api_v1_preferences_get"];
+        /**
+         * Save Preferences
+         * @description Substitui as preferências do usuário autenticado.
+         *
+         *     Idempotente: reenviar o mesmo payload produz o mesmo documento. O dono do
+         *     documento vem sempre do token — `user_id` ou `email` no corpo são
+         *     rejeitados com 422.
+         */
+        put: operations["save_preferences_api_v1_preferences_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/symbols": {
         parameters: {
             query?: never;
@@ -108,6 +140,17 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * ChartSettings
+         * @description Chart rendering preferences (accessibility).
+         */
+        ChartSettings: {
+            /**
+             * Hollow Up Candles
+             * @default false
+             */
+            hollow_up_candles: boolean;
+        };
         /**
          * FeatureRowOut
          * @description One indicator row from features_{15m,1h,24h}.
@@ -217,6 +260,83 @@ export interface components {
             taker_buy_quote_asset_volume?: number | null;
             /** Volume */
             volume: number;
+        };
+        /**
+         * NotificationSettings
+         * @description Digest switch, delivery channel and selected topics.
+         */
+        NotificationSettings: {
+            /**
+             * Channel
+             * @default email
+             * @enum {string}
+             */
+            channel: "email" | "sms" | "whatsapp";
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            topics?: components["schemas"]["NotificationTopics"];
+        };
+        /**
+         * NotificationTopics
+         * @description Which daily digest topics the user opted into.
+         */
+        NotificationTopics: {
+            /**
+             * Forecast Gap
+             * @default false
+             */
+            forecast_gap: boolean;
+            /**
+             * Model Runs
+             * @default false
+             */
+            model_runs: boolean;
+            /**
+             * Volatility
+             * @default false
+             */
+            volatility: boolean;
+            /**
+             * Volume Movers
+             * @default false
+             */
+            volume_movers: boolean;
+        };
+        /**
+         * PreferencesIn
+         * @description Payload accepted when saving preferences.
+         *
+         *     ``extra="forbid"`` is deliberate: it rejects any attempt to smuggle
+         *     ``user_id`` or ``email`` into the document. The owner of the document
+         *     always comes from the validated token, never from the request body.
+         */
+        PreferencesIn: {
+            chart?: components["schemas"]["ChartSettings"];
+            /** Display Name */
+            display_name?: string | null;
+            notifications?: components["schemas"]["NotificationSettings"];
+            /** Phone */
+            phone?: string | null;
+        };
+        /**
+         * PreferencesOut
+         * @description Preferences returned to the client.
+         *
+         *     ``extra="ignore"`` (not ``forbid``): documents written by an older
+         *     schema version must never break a read.
+         */
+        PreferencesOut: {
+            chart?: components["schemas"]["ChartSettings"];
+            /** Display Name */
+            display_name?: string | null;
+            /** Email */
+            email?: string | null;
+            notifications?: components["schemas"]["NotificationSettings"];
+            /** Phone */
+            phone?: string | null;
         };
         /**
          * SymbolOut
@@ -364,6 +484,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KlineOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_preferences_api_v1_preferences_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferencesOut"];
+                };
+            };
+        };
+    };
+    save_preferences_api_v1_preferences_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreferencesIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferencesOut"];
                 };
             };
             /** @description Validation Error */
