@@ -4,10 +4,14 @@ Read-only: it never deploys anything. A rules file sitting in the repo proves
 nothing about what the project actually enforces, so this closes the loop.
 
 Usage (from back-end/):
-    uv run python scripts/check_firestore_rules.py
+    uv run python scripts/check_firestore_rules.py [caminho/da/chave-admin.json]
 
-Requires FIREBASE_CREDENTIALS_PATH (or FIREBASE_CREDENTIALS_JSON) to point at a
-service account able to read rules (the Firebase Admin SDK service agent can).
+This is an ops check, not a runtime path: reading rules needs a credential with
+`firebaserules.viewer` (the Firebase Admin SDK service agent has it). The API's
+runtime service account deliberately does NOT — it only carries datastore.user
+and firebaseauth.admin — so pass an admin key explicitly, or point
+FIREBASE_CREDENTIALS_PATH at one when running this.
+
 Exit code 0 when they match, 1 when they drift, 2 on a configuration error.
 
 To deploy after changing firestore.rules:
@@ -32,8 +36,10 @@ _SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
 _RELEASE = "cloud.firestore"
 
 
-def _credentials_info() -> dict:
-    """Load the service account JSON from the configured source."""
+def _credentials_info(explicit_path: str | None = None) -> dict:
+    """Load the service account JSON from an explicit path or from settings."""
+    if explicit_path:
+        return json.loads(Path(explicit_path).read_text(encoding="utf-8"))
     settings = get_settings()
     if settings.FIREBASE_CREDENTIALS_PATH:
         return json.loads(Path(settings.FIREBASE_CREDENTIALS_PATH).read_text(encoding="utf-8"))
@@ -47,6 +53,13 @@ def _deployed_rules(session, project: str) -> str:
     releases = session.get(
         f"https://firebaserules.googleapis.com/v1/projects/{project}/releases", timeout=30
     )
+    if releases.status_code == 403:
+        raise SystemExit(
+            "403 ao ler as regras: esta credencial nao tem 'firebaserules.viewer'.\n"
+            "A chave de runtime da API nao tem (e nao deve ter) esse papel. Rode com uma\n"
+            "credencial administrativa:\n"
+            "    uv run python scripts/check_firestore_rules.py caminho/da/chave-admin.json"
+        )
     releases.raise_for_status()
     for release in releases.json().get("releases", []):
         if release.get("name", "").split("/")[-1] == _RELEASE:
@@ -75,7 +88,8 @@ def _normalize(rules: str) -> str:
 
 
 def main() -> int:
-    info = _credentials_info()
+    explicit_path = sys.argv[1] if len(sys.argv) > 1 else None
+    info = _credentials_info(explicit_path)
     project = info["project_id"]
     credentials = service_account.Credentials.from_service_account_info(info, scopes=_SCOPES)
     session = google_requests.AuthorizedSession(credentials)

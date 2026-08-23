@@ -360,8 +360,13 @@ Firestore, então a autorização acontece na API. Para publicar e conferir:
 
 ```bash
 firebase deploy --only firestore:rules        # publica o que está no repo
-uv run python scripts/check_firestore_rules.py  # confere publicado == repo
+uv run python scripts/check_firestore_rules.py <chave-admin>.json   # confere publicado == repo
 ```
+
+A conferência é tarefa administrativa: ler regras exige `firebaserules.viewer`, papel
+que a service account de runtime da API **não** tem de propósito (ela carrega apenas
+`datastore.user` e `firebaseauth.admin`). Rodar sem argumento usa a credencial do
+`.env` e falha com uma mensagem explicando isso.
 
 ### Obtendo um access token sem o front-end
 
