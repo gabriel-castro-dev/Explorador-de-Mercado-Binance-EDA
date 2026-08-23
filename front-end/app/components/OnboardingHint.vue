@@ -14,7 +14,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   <div
     role="dialog"
     aria-labelledby="onboarding-title"
-    class="rounded-lg border border-primary/40 bg-elevated p-4 shadow-[0_8px_24px_rgba(0,0,0,.10)] dark:shadow-[0_8px_24px_rgba(0,0,0,.45)]"
+    class="glass p-4 shadow-[0_8px_24px_rgba(0,0,0,.45)]"
   >
     <div class="flex items-start gap-2">
       <UIcon

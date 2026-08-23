@@ -49,13 +49,6 @@ const isDashboard = computed(() => route.path === '/')
       </template>
 
       <template #right>
-        <UTooltip text="Alternar tema claro/escuro">
-          <UColorModeButton
-            color="neutral"
-            variant="ghost"
-            aria-label="Alternar tema claro/escuro"
-          />
-        </UTooltip>
         <UDropdownMenu
           :items="accountItems"
           :content="{ align: 'end' }"

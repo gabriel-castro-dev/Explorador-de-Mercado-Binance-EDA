@@ -16,6 +16,7 @@ import {
   createChart,
   type IChartApi,
   type ISeriesApi,
+  type LineWidth,
   type LogicalRange,
   type MouseEventParams,
   type Time,
@@ -41,8 +42,6 @@ const props = defineProps<{
 const emit = defineEmits<{ (e: 'reach-left-edge'): void }>()
 
 const container = ref<HTMLDivElement | null>(null)
-const colorMode = useColorMode()
-const mode = computed<'light' | 'dark'>(() => (colorMode.value === 'dark' ? 'dark' : 'light'))
 
 let chart: IChartApi | null = null
 let candleSeries: ISeriesApi<'Candlestick'> | null = null
@@ -60,7 +59,7 @@ const lastCandle = computed(() => candles.value.at(-1) ?? null)
 const lastTime = computed(() => lastCandle.value?.time ?? null)
 const precision = computed(() => priceDecimals(lastCandle.value?.close ?? 1))
 
-const palette = computed(() => CANDLE_COLORS[mode.value])
+const palette = CANDLE_COLORS
 
 /** Lê tokens CSS do tema atual (layout do gráfico segue o chrome). */
 function cssVar(name: string, fallback: string): string {
@@ -99,19 +98,19 @@ function chartOptions() {
     autoSize: true,
     layout: {
       background: { type: ColorType.Solid, color: 'transparent' },
-      textColor: cssVar('--ui-text-dimmed', '#8b8b94'),
-      fontFamily: '"IBM Plex Mono", ui-monospace, monospace',
+      textColor: cssVar('--ui-text-dimmed', '#66788f'),
+      fontFamily: '"Google Sans Code", ui-monospace, monospace',
       fontSize: 11,
-      panes: { separatorColor: cssVar('--ui-border', '#e4e4e7'), separatorHoverColor: 'rgba(79,70,229,.15)', enableResize: true },
+      panes: { separatorColor: cssVar('--ui-border', 'rgba(216,230,245,.14)'), separatorHoverColor: 'rgba(62,134,247,.15)', enableResize: true },
     },
     grid: {
       vertLines: { visible: false },
-      horzLines: { color: cssVar('--ui-border-muted', '#ededf0') },
+      horzLines: { color: cssVar('--ui-border-muted', 'rgba(216,230,245,.08)') },
     },
     crosshair: {
       mode: CrosshairMode.Normal,
-      vertLine: { color: cssVar('--ui-text-dimmed', '#8b8b94'), style: LineStyle.Dashed, width: 1 as const, labelBackgroundColor: cssVar('--ui-text-highlighted', '#18181b') },
-      horzLine: { color: cssVar('--ui-text-dimmed', '#8b8b94'), style: LineStyle.Dashed, width: 1 as const, labelBackgroundColor: cssVar('--ui-text-highlighted', '#18181b') },
+      vertLine: { color: cssVar('--ui-text-dimmed', '#66788f'), style: LineStyle.Dashed, width: 1 as const, labelBackgroundColor: cssVar('--cf-solid', '#0c1626') },
+      horzLine: { color: cssVar('--ui-text-dimmed', '#66788f'), style: LineStyle.Dashed, width: 1 as const, labelBackgroundColor: cssVar('--cf-solid', '#0c1626') },
     },
     rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.08, bottom: 0.22 } },
     timeScale: {
@@ -150,12 +149,11 @@ function clearSeries() {
 
 function buildSeries() {
   if (!chart) return
-  const p = palette.value
-  const m = mode.value
+  const p = palette
   const prefs = props.prefs
 
   candleSeries = chart.addSeries(CandlestickSeries, {
-    upColor: props.hollowUp ? 'transparent' : p.up,
+    upColor: props.hollowUp ? p.upBody : p.up,
     downColor: p.down,
     borderUpColor: p.up,
     borderDownColor: p.down,
@@ -184,8 +182,8 @@ function buildSeries() {
     for (const field of def.fields) {
       const isMiddle = field === 'bb_middle'
       const s = chart.addSeries(LineSeries, {
-        color: def.color[m],
-        lineWidth: def.lineWidth,
+        color: def.color,
+        lineWidth: def.lineWidth as LineWidth,
         lineStyle: isMiddle ? LineStyle.Dashed : lineStyleOf(def.lineStyle),
         priceLineVisible: false,
         lastValueVisible: false,
@@ -202,8 +200,8 @@ function buildSeries() {
     const def = INDICATOR_BY_KEY.rsi
     rsiBand = chart.addSeries(BaselineSeries, {
       baseValue: { type: 'price', price: 30 },
-      topFillColor1: 'rgba(79,70,229,.06)',
-      topFillColor2: 'rgba(79,70,229,.06)',
+      topFillColor1: 'rgba(62,134,247,.06)',
+      topFillColor2: 'rgba(62,134,247,.06)',
       topLineColor: 'transparent',
       bottomFillColor1: 'transparent',
       bottomFillColor2: 'transparent',
@@ -215,7 +213,7 @@ function buildSeries() {
     }, paneIndex)
     rsiBand.setData(candles.value.map(c => ({ time: c.time, value: 70 })))
     rsiSeries = chart.addSeries(LineSeries, {
-      color: def.color[m],
+      color: def.color,
       lineWidth: 1,
       priceLineVisible: false,
       lastValueVisible: false,
@@ -224,7 +222,7 @@ function buildSeries() {
       autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 100 } }),
     }, paneIndex)
     rsiSeries.setData(featureToLine(props.features, 'rsi_14'))
-    const border = cssVar('--ui-border', '#e4e4e7')
+    const border = cssVar('--ui-border', 'rgba(216,230,245,.14)')
     for (const price of [30, 70]) {
       rsiSeries.createPriceLine({ price, color: border, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: '' })
     }
@@ -241,9 +239,9 @@ function buildSeries() {
       priceFormat: macdFormat,
     }, paneIndex)
     macdHist.setData(featureToHistogram(props.features, 'macd_histogram', { positive: p.upHist, negative: p.downHist }))
-    macdLine = chart.addSeries(LineSeries, { color: def.color[m], lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, priceFormat: macdFormat }, paneIndex)
+    macdLine = chart.addSeries(LineSeries, { color: def.color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, priceFormat: macdFormat }, paneIndex)
     macdLine.setData(featureToLine(props.features, 'macd'))
-    macdSignal = chart.addSeries(LineSeries, { color: MACD_SIGNAL_COLOR[m], lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, priceFormat: macdFormat }, paneIndex)
+    macdSignal = chart.addSeries(LineSeries, { color: MACD_SIGNAL_COLOR, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, priceFormat: macdFormat }, paneIndex)
     macdSignal.setData(featureToLine(props.features, 'macd_signal'))
     paneIndex++
   }
@@ -341,7 +339,7 @@ function refreshLegend(time: UTCTimestamp | null) {
     const field = def.fields[0]
     if (!field) continue
     const v = t === null ? lastValue(props.features, field) : (time === null ? lastValue(props.features, field) : valueAt(props.features, field, t))
-    const row: LegendRow = { key: def.key, label: def.label, color: def.color[mode.value], style: def.lineStyle, value: v === null ? EM_DASH : formatNumber(v, precision.value) }
+    const row: LegendRow = { key: def.key, label: def.label, color: def.color, style: def.lineStyle, value: v === null ? EM_DASH : formatNumber(v, precision.value) }
     if (v === null) row.note = warmupNote(field, def.window)
     rows.push(row)
   }
@@ -422,7 +420,7 @@ watch(() => [props.symbol, props.tf, props.klines, props.features], () => {
   scheduleMeasure()
 }, { deep: false })
 
-watch(() => [props.prefs, mode.value, props.hollowUp], () => {
+watch(() => [props.prefs, props.hollowUp], () => {
   rebuild()
   refreshLegend(null)
   scheduleMeasure()
@@ -461,13 +459,16 @@ defineExpose({ fitContent: () => chart?.timeScale().fitContent() })
       :style="{ left: `${cutLeft}px`, right: `${priceScaleWidth}px` }"
       aria-hidden="true"
     >
-      <div class="absolute inset-y-0 left-0 border-l border-dashed border-primary/70" />
+      <div
+        class="absolute inset-y-0 left-0 border-l border-dashed"
+        style="border-color: rgba(95,196,255,.7)"
+      />
       <div
         class="absolute inset-y-0 left-0 right-0 opacity-60"
         style="background: repeating-linear-gradient(135deg, transparent 0 6px, var(--cf-forecast-fill) 6px 7px)"
       />
       <span
-        class="num absolute right-2 whitespace-nowrap text-[11px] text-primary"
+        class="num text-ai absolute right-2 whitespace-nowrap text-[11px]"
         :style="{ top: `${(paneTops[1] ?? (container?.clientHeight ?? 0) - 30) - 26}px`, textShadow: '0 0 4px var(--ui-bg-elevated)' }"
       >previsão · em breve</span>
     </div>
@@ -537,11 +538,11 @@ defineExpose({ fitContent: () => chart?.timeScale().fitContent() })
         <span class="text-muted">MACD 12·26·9</span>
         <span
           class="ml-1.5"
-          :style="{ color: INDICATOR_BY_KEY.macd.color[mode] }"
+          :style="{ color: INDICATOR_BY_KEY.macd.color }"
         >{{ macdValues.macd }}</span>
         <span
           class="ml-1.5"
-          :style="{ color: MACD_SIGNAL_COLOR[mode] }"
+          :style="{ color: MACD_SIGNAL_COLOR }"
         >{{ macdValues.signal }}</span>
         <span class="ml-1.5 text-muted">{{ macdValues.hist }}</span>
       </div>

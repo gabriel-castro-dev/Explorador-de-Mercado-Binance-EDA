@@ -15,8 +15,6 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{ (e: 'retry-features'): void }>()
 
-const colorMode = useColorMode()
-const mode = computed<'light' | 'dark'>(() => (colorMode.value === 'dark' ? 'dark' : 'light'))
 const toast = useToast()
 
 const groups = [
@@ -120,7 +118,7 @@ function onRestore() {
                 @update:model-value="(v: boolean | 'indeterminate') => props.controller.toggle(def.key, v === true)"
               />
               <ChartSwatch
-                :color="def.color[mode]"
+                :color="def.color"
                 :style-name="def.lineStyle"
                 :kind="def.pane === 'volume' ? 'bars' : 'line'"
                 :width="18"

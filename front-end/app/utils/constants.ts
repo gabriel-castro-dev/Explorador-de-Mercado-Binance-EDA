@@ -36,10 +36,11 @@ export interface IndicatorDef {
   /** Grupo do painel de toggles. */
   group: 'price' | 'below'
   pane: IndicatorPane
-  /** Cor por modo (tokens.md §2). */
-  color: { light: string, dark: string }
+  /** Cor única — dark-only (Design.md §2.4). */
+  color: string
   lineStyle: LineStyleName
-  lineWidth: 1 | 2 | 3 | 4
+  /** Espessura em px; a escala crescente por período é canal secundário obrigatório (audit.md). */
+  lineWidth: number
   /** Campos da API que compõem a série. */
   fields: readonly FeatureKey[]
   /** Janela de cálculo em velas (para a nota de warm-up). */
@@ -51,28 +52,53 @@ export interface IndicatorDef {
 export type IndicatorKey
   = | 'sma20' | 'sma50' | 'sma200' | 'ema12' | 'ema26' | 'bb' | 'volume' | 'rsi' | 'macd'
 
+/**
+ * Família azul/gelo (Design.md §2.4). O par SMA 20×50 não passa o piso de distinção por
+ * cor do validador (ΔE 9.9 < 15, audit.md) — a mitigação obrigatória é: espessura crescente
+ * por período, SMA contínua × EMA tracejada × BB pontilhada e legenda com valores sempre visível.
+ * Recomendação de uso: no máx. 2–3 overlays ligados (padrão: SMA 20 + SMA 50).
+ */
 export const INDICATOR_DEFS: readonly IndicatorDef[] = [
-  { key: 'sma20', label: 'SMA 20', group: 'price', pane: 'price', color: { light: '#2a78d6', dark: '#3987e5' }, lineStyle: 'solid', lineWidth: 1, fields: ['sma_20'], window: 20 },
-  { key: 'sma50', label: 'SMA 50', group: 'price', pane: 'price', color: { light: '#eb6834', dark: '#d95926' }, lineStyle: 'solid', lineWidth: 2, fields: ['sma_50'], window: 50 },
-  { key: 'sma200', label: 'SMA 200', group: 'price', pane: 'price', color: { light: '#4a3aa7', dark: '#9085e9' }, lineStyle: 'solid', lineWidth: 2, fields: ['sma_200'], window: 200, title: 'SMA 200 só existe a partir da 200ª vela' },
-  { key: 'ema12', label: 'EMA 12', group: 'price', pane: 'price', color: { light: '#eda100', dark: '#c98500' }, lineStyle: 'dashed', lineWidth: 1, fields: ['ema_12'], window: 12 },
-  { key: 'ema26', label: 'EMA 26', group: 'price', pane: 'price', color: { light: '#e87ba4', dark: '#d55181' }, lineStyle: 'dashed', lineWidth: 2, fields: ['ema_26'], window: 26 },
-  { key: 'bb', label: 'Bollinger 20·2', group: 'price', pane: 'price', color: { light: '#6b7280', dark: '#9ca3af' }, lineStyle: 'dotted', lineWidth: 1, fields: ['bb_upper', 'bb_middle', 'bb_lower'], window: 20 },
-  { key: 'volume', label: 'Volume', group: 'price', pane: 'volume', color: { light: '#8b8b94', dark: '#71717a' }, lineStyle: 'solid', lineWidth: 1, fields: [] },
-  { key: 'rsi', label: 'RSI 14', group: 'below', pane: 'rsi', color: { light: '#4f46e5', dark: '#818cf8' }, lineStyle: 'solid', lineWidth: 1, fields: ['rsi_14'], window: 14 },
-  { key: 'macd', label: 'MACD 12·26·9', group: 'below', pane: 'macd', color: { light: '#2a78d6', dark: '#3987e5' }, lineStyle: 'solid', lineWidth: 1, fields: ['macd', 'macd_signal', 'macd_histogram'], window: 34 },
+  { key: 'sma20', label: 'SMA 20', group: 'price', pane: 'price', color: '#4f8ff7', lineStyle: 'solid', lineWidth: 1.2, fields: ['sma_20'], window: 20 },
+  { key: 'sma50', label: 'SMA 50', group: 'price', pane: 'price', color: '#2596be', lineStyle: 'solid', lineWidth: 1.8, fields: ['sma_50'], window: 50 },
+  { key: 'sma200', label: 'SMA 200', group: 'price', pane: 'price', color: '#c8d9ef', lineStyle: 'solid', lineWidth: 2.2, fields: ['sma_200'], window: 200, title: 'SMA 200 só existe a partir da 200ª vela' },
+  { key: 'ema12', label: 'EMA 12', group: 'price', pane: 'price', color: '#8ab8ff', lineStyle: 'dashed', lineWidth: 1.2, fields: ['ema_12'], window: 12 },
+  { key: 'ema26', label: 'EMA 26', group: 'price', pane: 'price', color: '#2f5fd0', lineStyle: 'dashed', lineWidth: 1.8, fields: ['ema_26'], window: 26 },
+  { key: 'bb', label: 'Bollinger 20·2', group: 'price', pane: 'price', color: 'rgba(200,217,239,.55)', lineStyle: 'dotted', lineWidth: 1, fields: ['bb_upper', 'bb_middle', 'bb_lower'], window: 20 },
+  { key: 'volume', label: 'Volume', group: 'price', pane: 'volume', color: 'rgba(219,231,245,.28)', lineStyle: 'solid', lineWidth: 1, fields: [] },
+  { key: 'rsi', label: 'RSI 14', group: 'below', pane: 'rsi', color: '#4f8ff7', lineStyle: 'solid', lineWidth: 1, fields: ['rsi_14'], window: 14 },
+  { key: 'macd', label: 'MACD 12·26·9', group: 'below', pane: 'macd', color: '#4f8ff7', lineStyle: 'solid', lineWidth: 1, fields: ['macd', 'macd_signal', 'macd_histogram'], window: 34 },
 ] as const
 
 export const INDICATOR_BY_KEY: Record<IndicatorKey, IndicatorDef> = Object.fromEntries(
   INDICATOR_DEFS.map(d => [d.key, d]),
 ) as Record<IndicatorKey, IndicatorDef>
 
-/** Cor do sinal do MACD (slot 2) e do histograma (alta/baixa a 60 %). */
-export const MACD_SIGNAL_COLOR = { light: '#eb6834', dark: '#d95926' } as const
+/** Cor do sinal do MACD (slot 2): gelo, contra a linha azul. */
+export const MACD_SIGNAL_COLOR = '#dbe7f5'
 
+/**
+ * Velas gelo × vermelho (Design.md §2.4): alta vazada por padrão (corpo gelo a 10 %,
+ * contorno gelo — a identidade da logo), baixa preenchida. `upBody` é o corpo da vazada;
+ * `up` cheio é a opção de acessibilidade "Velas de alta preenchidas".
+ */
 export const CANDLE_COLORS = {
-  light: { up: '#0f9d58', down: '#d93025', flat: '#8b8b94', upSoft: 'rgba(15,157,88,.35)', downSoft: 'rgba(217,48,37,.35)', upHist: 'rgba(15,157,88,.6)', downHist: 'rgba(217,48,37,.6)' },
-  dark: { up: '#26a69a', down: '#ef5350', flat: '#71717a', upSoft: 'rgba(38,166,154,.35)', downSoft: 'rgba(239,83,80,.35)', upHist: 'rgba(38,166,154,.6)', downHist: 'rgba(239,83,80,.6)' },
+  up: '#dbe7f5',
+  upBody: 'rgba(219,231,245,.10)',
+  down: '#e5484d',
+  flat: '#66788f',
+  upSoft: 'rgba(219,231,245,.28)',
+  downSoft: 'rgba(229,72,77,.30)',
+  upHist: 'rgba(219,231,245,.45)',
+  downHist: 'rgba(229,72,77,.45)',
+} as const
+
+/** Cenários do modelo (melhor/esperada/pior) — tracejadas depois da linha de corte. */
+export const SCENARIO_COLORS = {
+  best: '#dbe7f5',
+  expected: '#5fc4ff',
+  worst: '#e5484d',
+  band: 'rgba(95,196,255,.08)',
 } as const
 
 export const DEFAULT_INDICATORS: Record<IndicatorKey, boolean> = {
@@ -92,6 +118,9 @@ export const STORAGE_KEYS = {
   onboarded: 'cf:onboarded:v1',
   hollowCandles: 'cf:hollow-candles:v1',
   macdMobileDismissed: 'cf:macd-mobile:v1',
+  scenarios: 'cf:scenarios:v1',
+  lastSeenAt: 'cf:last-seen-at:v1',
+  lastSymbol: 'cf:last-symbol:v1',
 } as const
 
 /** Nomes legíveis dos pares mais comuns (fallback: só o símbolo). */
