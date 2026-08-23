@@ -95,19 +95,73 @@ class PreferencesRepositoryTests(unittest.TestCase):
         self.assertNotIn("created_at", document.set.call_args.args[0])
 
 
+def _bare_settings(**overrides):
+    return Settings(
+        SUPABASE_URL="x",
+        SUPABASE_KEY="x",
+        BINANCE_API_KEY="x",
+        BINANCE_API_SECRET="x",
+        _env_file=None,
+        **overrides,
+    )
+
+
 class FirebaseCredentialsTests(unittest.TestCase):
     def test_missing_credentials_raise_an_explicit_error(self):
         from app.clients.firebase.client import FirebaseCredentialsError, _build_credentials
 
-        settings = Settings(
-            SUPABASE_URL="x",
-            SUPABASE_KEY="x",
-            BINANCE_API_KEY="x",
-            BINANCE_API_SECRET="x",
-            _env_file=None,
-        )
         with self.assertRaises(FirebaseCredentialsError):
-            _build_credentials(settings)
+            _build_credentials(_bare_settings())
+
+    def test_injected_settings_are_accepted_by_the_seam(self):
+        """Settings is unhashable: it must not sit in an lru_cache key."""
+        from app.clients.firebase import client as fb
+
+        settings = _bare_settings()
+        with self.assertRaises(TypeError):
+            hash(settings)  # confirma a premissa do teste
+        with patch.object(fb, "_initialize") as initialize, patch.object(fb, "firestore"):
+            fb.build_firestore(settings)
+        initialize.assert_called_once_with(settings)
+
+    def test_concurrent_first_calls_initialize_the_app_only_once(self):
+        """lru_cache não serializa cache miss concorrente; o lock serializa."""
+        import threading
+
+        from app.clients.firebase import client as fb
+
+        apps = {}
+        calls = []
+        barrier = threading.Barrier(8)
+
+        def _initialize_app(_credentials):
+            calls.append(1)
+            if apps:  # reproduz o ValueError real do firebase_admin
+                raise ValueError("The default Firebase app already exists.")
+            apps["[DEFAULT]"] = object()
+
+        errors = []
+
+        def _worker():
+            barrier.wait()
+            try:
+                fb._initialize(_bare_settings())
+            except Exception as error:  # noqa: BLE001
+                errors.append(error)
+
+        with (
+            patch.object(fb.firebase_admin, "_apps", apps),
+            patch.object(fb.firebase_admin, "initialize_app", _initialize_app),
+            patch.object(fb, "_build_credentials", return_value=object()),
+        ):
+            threads = [threading.Thread(target=_worker) for _ in range(8)]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+
+        self.assertEqual(errors, [])
+        self.assertEqual(len(calls), 1)
 
 
 class PreferencesApiTests(unittest.TestCase):
