@@ -11,9 +11,10 @@ App de **forecasting de criptomoedas**. O projeto nasceu como um pipeline local 
 | Pipeline de coleta | Python 3.13 + `uv`, Docker | GitHub Actions (cron) | **Em produção** |
 | Feature engineering | Python (pandas, TA-Lib), Docker | GitHub Actions (diário, após coleta) | **Em produção** |
 | Banco de dados | Supabase (PostgreSQL) | Supabase Cloud | **Em produção** |
-| API REST | FastAPI + Supabase Auth (JWT/JWKS, RLS) | **VM** (não Render — docs antigas podem citar Render) | v1 implementada; deploy pendente |
+| API REST | FastAPI + Supabase Auth (JWT/JWKS, RLS) | **Railway** (container do GHCR; decisão de 2026-08-23 — docs antigas citam VM/Render) | v1 implementada; deploy em configuração |
+| Preferências do usuário | Firestore via Firebase Admin SDK | Firebase (plano Spark) | **Em produção** |
 | ML / Forecasting | A definir (candidatos: Scikit-Learn, Prophet) | GitHub Actions / Runner | Planejado |
-| Front-end | **Vue 3 + Nuxt 4 (SPA estática) + Nuxt UI v4/Tailwind v4 + Lightweight Charts v5** (não React) | Estático: Caddy na VM Hostinger **ou** Vercel — ainda não decidido | v1 funcional em `front-end/`; deploy pendente |
+| Front-end | **Vue 3 + Nuxt 4 (SPA estática) + Nuxt UI v4/Tailwind v4 + Lightweight Charts v5** (não React) | **Vercel** (estático) | v1 funcional em `front-end/`; deploy pendente |
 
 ### Estado atual (2026-08)
 

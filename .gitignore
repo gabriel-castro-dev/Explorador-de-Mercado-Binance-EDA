@@ -80,6 +80,8 @@ dmypy.json
 back-end/**/*.json
 # Config declarativa do Firebase (nao e segredo; o deploy das regras depende dela)
 !back-end/firebase.json
+# Config de deploy do Railway (nao e segredo)
+!back-end/railway.json
 *.bak
 *.tmp
 
