@@ -50,6 +50,29 @@ export function selectHighlighted(
   }
 }
 
+/**
+ * Remove trajetórias vazias preservando a classificação da API: os índices de
+ * `classified` apontam para o array original e são remapeados para o filtrado —
+ * sem isso, o melhor caminho pode virar o pior depois do filtro. Índices que
+ * apontavam para uma trajetória removida caem no fallback de `selectHighlighted`.
+ */
+export function filterPaths(
+  paths: readonly (readonly number[])[],
+  classified?: MonteCarloSeries['classified'],
+): { paths: (readonly number[])[], classified?: MonteCarloSeries['classified'] } {
+  const entries = paths
+    .map((path, index) => ({ index, path }))
+    .filter(e => e.path.length > 0)
+  const filteredIndex = new Map(entries.map((e, i) => [e.index, i]))
+  const remap = (i?: number) => (i === undefined ? undefined : filteredIndex.get(i))
+  return {
+    paths: entries.map(e => e.path),
+    classified: classified
+      ? { best: remap(classified.best), base: remap(classified.base), worst: remap(classified.worst) }
+      : undefined,
+  }
+}
+
 export function median(sortedAscending: readonly number[]): number {
   const n = sortedAscending.length
   if (!n) return Number.NaN

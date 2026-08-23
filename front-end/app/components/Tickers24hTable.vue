@@ -13,6 +13,8 @@ const props = defineProps<{
   rows: readonly Ticker24h[]
   selectedSymbol: string | null
   loading: boolean
+  /** Timeframe vigente — os links para /graficos preservam o estado compartilhado. */
+  tf: string
 }>()
 
 interface Col {
@@ -132,7 +134,7 @@ defineExpose({ sortKey, sortDir })
           >
             <template v-if="col.key === 'symbol'">
               <NuxtLink
-                :to="{ path: '/graficos', query: { symbol: t.symbol } }"
+                :to="{ path: '/graficos', query: { symbol: t.symbol, tf: props.tf } }"
                 class="num rounded-sm text-[15px] text-hi"
                 translate="no"
               >
