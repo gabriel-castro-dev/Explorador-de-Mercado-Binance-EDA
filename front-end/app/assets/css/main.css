@@ -114,13 +114,26 @@
     line-height: 1.5;
   }
 
-  body {
-    @apply text-default antialiased;
+  /*
+   * Fundo pintado no body E no root do app (#__nuxt tem `isolation: isolate`
+   * pelo Nuxt UI: o mix-blend-mode da logo só enxerga o que está pintado
+   * dentro desse grupo — sem isto, o fundo preto do PNG ficaria visível).
+   */
+  body,
+  #__nuxt {
     background-color: var(--cf-bg);
     /* Luz ambiente: um brilho azul por página, no topo (Design.md §2.1). */
     background-image: radial-gradient(1200px 600px at 70% -10%, rgba(62, 134, 247, 0.1), transparent 60%);
     background-repeat: no-repeat;
     background-attachment: fixed;
+  }
+
+  #__nuxt {
+    min-height: 100dvh;
+  }
+
+  body {
+    @apply text-default antialiased;
   }
 
   h1, h2, h3 {

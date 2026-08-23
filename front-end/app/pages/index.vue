@@ -30,7 +30,9 @@ const firstName = computed(() => {
   return email.split('@')[0] || 'de volta'
 })
 
-const isFirstVisit = computed(() => lastSeen.value === null)
+// Valor gravado por versões antigas/externas pode não ser um ISO válido.
+const lastSeenValid = computed(() => (lastSeen.value && !Number.isNaN(Date.parse(lastSeen.value)) ? lastSeen.value : null))
+const isFirstVisit = computed(() => lastSeenValid.value === null)
 const heading = computed(() => (isFirstVisit.value
   ? 'O mercado nas últimas 24 h'
   : 'As principais mudanças no mercado desde o seu último acesso'))
@@ -67,10 +69,10 @@ const fmtVolumeDelta = (row: InsightRow) => (row.delta === null ? null : `${arro
           {{ heading }}
         </h1>
         <p
-          v-if="lastSeen"
+          v-if="lastSeenValid"
           class="num mt-1.5 text-[12px] text-muted"
         >
-          Último acesso em {{ formatUtcShort(lastSeen) }} UTC
+          Último acesso em {{ formatUtcShort(lastSeenValid) }} UTC
         </p>
       </div>
       <div class="flex items-center gap-2">

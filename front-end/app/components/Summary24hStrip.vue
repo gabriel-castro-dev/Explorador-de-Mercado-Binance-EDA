@@ -33,7 +33,7 @@ const tiles = computed<Tile[]>(() => {
     { label: 'Bid / Ask', value: `${formatPrice(t.bid_price)} / ${formatPrice(t.ask_price)}`, sub: spread === null ? undefined : `spread ${formatNumber(spread, 3)} %`, dense: true },
     { label: 'Volume 24h', value: t.volume == null ? EM_DASH : `${formatCompact(t.volume)} ${baseAsset(t.symbol)}`, sub: `${formatCompact(t.quote_volume)} USDT · ${formatCompact(t.count)} trades` },
     // Ciano = IA; sem número fabricado até o modelo publicar (marco 3).
-    { label: 'Previsão diária (IA)', value: EM_DASH, tone: 'ai', chip: 'IA · v0 · em validação' },
+    { label: 'Previsão diária (IA)', value: EM_DASH, tone: 'ai', chip: 'IA · v0' },
   ]
 })
 

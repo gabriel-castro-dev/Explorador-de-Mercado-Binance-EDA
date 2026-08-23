@@ -164,7 +164,11 @@ function onRestore() {
                 @update:model-value="(v: boolean | 'indeterminate') => emit('toggle-scenario', v === true)"
               />
               <span class="flex-1 text-[13px] text-default">Cenários (melhor/esperado/pior)</span>
-              <span class="ai-chip text-[10px]">IA · v0 · em validação</span>
+              <!-- Forma curta no aside (232px); a longa só onde há largura -->
+              <span
+                class="ai-chip text-[10px]"
+                :title="props.variant === 'drawer' ? undefined : 'IA · v0 · em validação'"
+              >{{ props.variant === 'drawer' ? 'IA · v0 · em validação' : 'IA · v0' }}</span>
             </label>
           </li>
         </ul>
