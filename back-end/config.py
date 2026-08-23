@@ -45,12 +45,22 @@ class Settings(BaseSettings):
     API_CORS_ORIGINS: str = "http://localhost:3000"  # separado por virgula; default dev Nuxt
     API_VERSION: str = "0.1.0"
 
+    # --- Firebase / Firestore (preferencias do usuario) ---
+    # A credencial NUNCA vai para o git nem para dentro da imagem Docker:
+    # em dev aponta para o arquivo local; no container, monte um volume
+    # read-only (PATH) ou injete o conteudo do JSON (CREDENTIALS_JSON).
+    FIREBASE_CREDENTIALS_PATH: Optional[str] = None
+    FIREBASE_CREDENTIALS_JSON: Optional[str] = None
+    FIRESTORE_COLLECTION: str = "user_preferences"
+
     @field_validator(
         "BINANCE_API_KEY",
         "BINANCE_API_SECRET",
         "SUPABASE_KEY",
         "SUPABASE_PUBLISHABLE_KEY",
         "SUPABASE_JWT_SECRET",
+        "FIREBASE_CREDENTIALS_PATH",
+        "FIREBASE_CREDENTIALS_JSON",
     )
     @classmethod
     def strip_values(cls, v: str) -> str:
