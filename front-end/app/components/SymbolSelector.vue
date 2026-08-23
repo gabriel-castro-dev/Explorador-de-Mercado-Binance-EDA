@@ -48,7 +48,7 @@ function toneClass(pct: number | null) {
       :filter-fields="['symbol', 'name']"
       :search-input="{ placeholder: 'Buscar ativo…', icon: 'i-lucide-search', autofocus: true }"
       icon="i-lucide-search"
-      size="md"
+      size="lg"
       aria-label="Ativo"
       class="w-[220px] sm:w-[240px]"
       :ui="{ content: 'w-[320px] max-h-[360px]', item: 'py-1.5' }"
@@ -59,12 +59,12 @@ function toneClass(pct: number | null) {
           class="flex items-center gap-2 truncate"
         >
           <span
-            class="num font-medium text-highlighted"
+            class="num text-[15px] text-hi"
             translate="no"
           >{{ modelValue.symbol }}</span>
           <span
             v-if="modelValue.name"
-            class="truncate text-[12px] text-muted"
+            class="truncate text-[13px] text-muted"
           >{{ modelValue.name }}</span>
         </span>
         <span
@@ -81,7 +81,7 @@ function toneClass(pct: number | null) {
         <span class="flex w-full items-center justify-between gap-3">
           <span class="flex min-w-0 flex-col">
             <span
-              class="num font-medium text-highlighted"
+              class="num text-[15px] text-hi"
               translate="no"
             >{{ item.symbol }}</span>
             <span

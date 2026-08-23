@@ -50,3 +50,30 @@ export function volumeTop(
   }
   return out.sort((a, b) => b.value - a.value).slice(0, limit)
 }
+
+/**
+ * Leitura do dia (Design.md §9.1): a API devolve um parágrafo único; a tela
+ * precisa de manchete + explicação. Recorta a primeira frase como manchete e
+ * mantém o restante como texto corrido — nenhuma palavra é inventada.
+ */
+export interface ReadingParts {
+  headline: string
+  body: string
+}
+
+export function splitReading(text: string | null | undefined): ReadingParts | null {
+  const clean = (text ?? '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    // pt-BR separa o numeral do símbolo; espaço fino inquebrável evita órfão
+    // como "1,4" numa linha e "%" na seguinte no display editorial.
+    .replace(/(\d)\s(%|°|km|kg|USDT)/g, '$1 $2')
+  if (!clean) return null
+  // Primeira frase: termina em . ! ? seguido de espaço + maiúscula, ou fim do texto.
+  const match = clean.match(/^(.+?[.!?])(?:\s+(?=[A-ZÀ-ÖØ-Þ0-9]))(.*)$/s)
+  if (!match) return { headline: clean, body: '' }
+  const [, headline = '', body = ''] = match
+  // Manchete muito longa vira corpo: o display editorial aceita no máximo 3 linhas.
+  if (headline.length > 96) return { headline: '', body: clean }
+  return { headline, body: body.trim() }
+}

@@ -18,18 +18,18 @@ const props = withDefaults(defineProps<{
       :name="props.icon"
       class="size-6 text-dimmed"
     />
-    <h3 class="mt-3 text-[14px] font-semibold text-highlighted">
+    <h3 class="cf-h3 mt-4">
       {{ props.title }}
     </h3>
     <p
       v-if="props.description"
-      class="mt-1.5 max-w-[420px] text-[13px] text-muted"
+      class="mt-2.5 max-w-[46ch] text-[14px] text-muted"
     >
       {{ props.description }}
     </p>
     <div
       v-if="props.actions.length"
-      class="mt-4 flex flex-wrap items-center justify-center gap-2"
+      class="mt-6 flex flex-wrap items-center justify-center gap-3"
     >
       <UButton
         v-for="(action, i) in props.actions"

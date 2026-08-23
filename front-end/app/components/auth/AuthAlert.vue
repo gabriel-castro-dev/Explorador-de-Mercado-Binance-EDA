@@ -21,8 +21,8 @@ watch(() => props.message, async (m) => {
     ref="el"
     tabindex="-1"
     :role="props.tone === 'error' ? 'alert' : 'status'"
-    class="rounded-md border px-3 py-2.5 text-[13px] outline-none"
-    :class="props.tone === 'error' ? 'border-(--cf-danger)/40 bg-(--cf-danger-bg) text-(--cf-danger)' : 'border-default bg-muted text-default'"
+    class="cf-surface px-3.5 py-3 text-[14px] outline-none"
+    :class="props.tone === 'error' ? 'border-[var(--cf-down)]/40 bg-down-soft text-down' : 'border-default text-default'"
   >
     <div class="flex items-start gap-2">
       <UIcon

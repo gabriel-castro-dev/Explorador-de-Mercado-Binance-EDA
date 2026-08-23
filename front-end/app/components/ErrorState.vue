@@ -25,18 +25,18 @@ onMounted(() => {
   >
     <UIcon
       name="i-lucide-circle-x"
-      class="size-6 text-danger"
+      class="size-6 text-down"
     />
-    <h3 class="mt-3 text-[14px] font-semibold text-highlighted">
+    <h3 class="cf-h3 mt-4">
       {{ props.title }}
     </h3>
     <p
       v-if="props.description"
-      class="mt-1.5 max-w-[420px] text-[13px] text-muted"
+      class="mt-2.5 max-w-[46ch] text-[14px] text-muted"
     >
       {{ props.description }}
     </p>
-    <div class="mt-4 flex flex-wrap items-center justify-center gap-3">
+    <div class="mt-6 flex flex-wrap items-center justify-center gap-4">
       <UButton
         ref="btn"
         icon="i-lucide-refresh-cw"

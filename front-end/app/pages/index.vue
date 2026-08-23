@@ -1,174 +1,156 @@
 <script setup lang="ts">
 import type { InsightRow } from '~/utils/insights'
 import { latestSnapshotAt } from '~/utils/tickers'
-import { arrowOf, formatCompact, formatNumber, formatPercent, formatUtcShort } from '~/utils/format'
+import { formatCompact, formatNumber } from '~/utils/format'
 
 /**
- * Início (home de insights — Design.md §5). Shim permanente: deep links antigos
- * e o cookie de redirect pós-login apontavam para `/?symbol=…` quando o gráfico
- * morava aqui — esses caem direto em /graficos com a mesma query.
+ * Início — Home narrativa (Design.md §9). A ordem é narrativa → dados:
+ * abertura editorial primeiro, faixas analíticas depois.
+ *
+ * Shim permanente: deep links antigos e o cookie de redirect pós-login apontavam
+ * para `/?symbol=…` quando o gráfico morava aqui — esses caem em /graficos.
  */
 const route = useRoute()
 if (route.query.symbol) {
   await navigateTo({ path: '/graficos', query: route.query }, { replace: true })
 }
 
-useHead({ title: 'Início · crypto forecasting' })
+useHead({ title: 'Início · CRYPTO FORECASTING' })
 
-const user = useSupabaseUser()
-const prefs = usePreferences()
+const { firstName } = useAccountIdentity()
 const lastSeen = useLastSeen()
 const lastSymbol = useLastSymbol()
 
 const insights = useHomeInsights()
 const reading = useDailyReading()
 
-const firstName = computed(() => {
-  const name = prefs.form.displayName.trim()
-  if (name) return name.split(/\s+/)[0]
-  const email = (user.value?.email as string | undefined) ?? ''
-  return email.split('@')[0] || 'de volta'
-})
-
 // Valor gravado por versões antigas/externas pode não ser um ISO válido.
 const lastSeenValid = computed(() => (lastSeen.value && !Number.isNaN(Date.parse(lastSeen.value)) ? lastSeen.value : null))
-const isFirstVisit = computed(() => lastSeenValid.value === null)
-const heading = computed(() => (isFirstVisit.value
+const heading = computed(() => (lastSeenValid.value === null
   ? 'O mercado nas últimas 24 h'
   : 'As principais mudanças no mercado desde o seu último acesso'))
 
 const snapshotAt = computed(() => latestSnapshotAt(insights.tickers.data.value))
 const fresh = useFreshness('tickers', snapshotAt, () => insights.tickers.status.value)
 
-const refreshing = ref(false)
-async function refreshAll() {
-  if (refreshing.value) return
-  refreshing.value = true
-  try {
-    await Promise.all([insights.refresh(), reading.refresh()])
-  } finally {
-    refreshing.value = false
-  }
-}
+const chartTarget = computed(() => (lastSymbol.value
+  ? { path: '/graficos', query: { symbol: lastSymbol.value } }
+  : { path: '/graficos' }))
 
-const fmtAtr = (row: InsightRow) => `ATR ${formatNumber(row.value, 1)} %`
-const fmtAtrDelta = (row: InsightRow) => (row.delta === null ? null : `${arrowOf(row.delta)} ${formatPercent(row.delta)}`.trim())
+const fmtAtr = (row: InsightRow) => `${formatNumber(row.value, 1)} %`
 const fmtVolume = (row: InsightRow) => `${formatCompact(row.value)} USDT`
-const fmtVolumeDelta = (row: InsightRow) => (row.delta === null ? null : `${arrowOf(row.delta)} ${formatPercent(row.delta)} vs média`.trim())
 </script>
 
 <template>
-  <div class="space-y-4">
-    <!-- Cabeçalho -->
-    <div class="flex flex-wrap items-end justify-between gap-4">
-      <div>
-        <p class="eyebrow text-ai">
-          Bem-vindo novamente, {{ firstName }}
-        </p>
-        <h1 class="mt-1.5 text-[24px] font-bold tracking-[-.01em] text-highlighted">
-          {{ heading }}
-        </h1>
-        <p
-          v-if="lastSeenValid"
-          class="num mt-1.5 text-[12px] text-muted"
-        >
-          Último acesso em {{ formatUtcShort(lastSeenValid) }} UTC
-        </p>
-      </div>
-      <div class="flex items-center gap-2">
-        <SnapshotBadge
-          prefix="RESUMO 24H"
-          :state="fresh.state.value"
-          :label="fresh.label.value"
-        />
-        <UButton
-          color="neutral"
-          variant="outline"
-          icon="i-lucide-refresh-cw"
-          :loading="refreshing"
-          :label="refreshing ? 'Atualizando…' : 'Atualizar'"
-          aria-label="Atualizar dados"
-          @click="refreshAll"
-        />
-      </div>
-    </div>
-
-    <!-- Top-5: volatilidade · gap real × projeção (IA) · volume -->
-    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      <HomeInsightCard
-        icon="i-lucide-activity"
-        title="Maior volatilidade de preço"
-        subtitle="ATR 14 relativo · último snapshot diário"
-        :rows="insights.volatility.value"
-        :status="insights.status.value"
-        :format-value="fmtAtr"
-        :format-delta="fmtAtrDelta"
-        @retry="insights.refresh()"
-      />
-      <HomeInsightCard
-        icon="i-lucide-git-compare-arrows"
-        title="Maior gap real × projeção"
-        subtitle="diferença entre preço real e previsão diária"
-        ai
-        ai-pending
-        :rows="[]"
-        :status="insights.status.value"
-      />
-      <HomeInsightCard
-        icon="i-lucide-bar-chart-3"
-        title="Maior volume de transação"
-        subtitle="volume 24h em USDT vs média de 7 dias"
-        :rows="insights.volume.value"
-        :status="insights.status.value"
-        :format-value="fmtVolume"
-        :format-delta="fmtVolumeDelta"
-        @retry="insights.refresh()"
-      />
-    </div>
-
-    <!-- Leitura do dia (IA) -->
-    <HomeDailyReading
+  <div>
+    <HomeNarrativeOpening
+      :first-name="firstName"
+      :heading="heading"
+      :last-seen-iso="lastSeenValid"
       :reading="reading.data.value"
-      :status="reading.status.value"
+      :reading-status="reading.status.value"
+      :snapshot-state="fresh.state.value"
+      :snapshot-label="fresh.label.value"
       @retry="reading.refresh()"
     />
 
-    <!-- Atalhos -->
-    <div class="grid gap-4 sm:grid-cols-2">
-      <NuxtLink
-        :to="lastSymbol ? { path: '/graficos', query: { symbol: lastSymbol } } : '/graficos'"
-        class="glass flex items-center gap-3 px-5 py-4 transition-colors hover:bg-muted"
+    <!-- Mudanças do mercado — três faixas abertas (Design.md §9.2) -->
+    <section
+      class="cf-section cf-gutter cf-shell relative"
+      aria-labelledby="mudancas-titulo"
+    >
+      <div
+        v-reveal="{ y: 24 }"
+        class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"
       >
-        <UIcon
-          name="i-lucide-chart-candlestick"
-          class="size-5 flex-none text-primary"
+        <div>
+          <h2
+            id="mudancas-titulo"
+            class="cf-h2 uppercase"
+          >
+            Mudanças do mercado
+          </h2>
+          <p class="mt-2 text-[15px] text-muted">
+            Três leituras desde o seu último acesso.
+          </p>
+        </div>
+        <SnapshotBadge
+          prefix="SNAPSHOT"
+          :state="fresh.state.value"
+          :label="fresh.label.value"
         />
-        <span class="min-w-0 flex-1">
-          <span class="block font-medium text-highlighted">Continuar de onde parou</span>
-          <span class="num block truncate text-[12px] text-muted">{{ lastSymbol || 'Abrir os gráficos' }}</span>
-        </span>
-        <UIcon
-          name="i-lucide-arrow-right"
-          class="size-4 flex-none text-dimmed"
-        />
-      </NuxtLink>
-      <NuxtLink
-        to="/preferencias"
-        class="glass flex items-center gap-3 px-5 py-4 transition-colors hover:bg-muted"
+      </div>
+
+      <div class="relative mt-14 md:mt-20">
+        <HomeBandTrajectory />
+
+        <div class="grid gap-14 md:gap-10 lg:grid-cols-3 lg:gap-12 xl:gap-16">
+          <HomeMarketBand
+            v-reveal="{ y: 32 }"
+            :index="1"
+            title="Maior volatilidade"
+            subtitle="ATR 14 relativo"
+            glyph="wave"
+            :rows="insights.volatility.value"
+            :status="insights.status.value"
+            :format-value="fmtAtr"
+            @retry="insights.refresh()"
+          />
+          <HomeMarketBand
+            v-reveal="{ y: 32, delay: 80 }"
+            :index="2"
+            title="Gap real × projeção"
+            subtitle="diferença entre preço real e previsão diária"
+            glyph="curve"
+            ai
+            pending-model
+            :rows="[]"
+            :status="insights.status.value"
+          />
+          <HomeMarketBand
+            v-reveal="{ y: 32, delay: 160 }"
+            :index="3"
+            title="Maior volume"
+            subtitle="volume 24 h versus média de 7 dias"
+            glyph="bars"
+            :rows="insights.volume.value"
+            :status="insights.status.value"
+            :format-value="fmtVolume"
+            @retry="insights.refresh()"
+          />
+        </div>
+      </div>
+
+      <div
+        v-reveal="{ y: 20 }"
+        class="mt-16 flex flex-wrap items-center gap-x-6 gap-y-3 md:mt-20"
       >
-        <UIcon
-          name="i-lucide-bell"
-          class="size-5 flex-none text-primary"
+        <NuxtLink
+          to="/mercado"
+          class="cf-navlink eyebrow inline-flex min-h-11 items-center text-muted hover:text-default"
+        >
+          VER TOP 20
+        </NuxtLink>
+        <span
+          class="h-4 w-px bg-[var(--cf-hairline)]"
+          aria-hidden="true"
         />
-        <span class="min-w-0 flex-1">
-          <span class="block font-medium text-highlighted">Configurar alertas</span>
-          <span class="block truncate text-[12px] text-muted">Tópicos e canal do resumo diário</span>
-        </span>
-        <UIcon
-          name="i-lucide-arrow-right"
-          class="size-4 flex-none text-dimmed"
-        />
-      </NuxtLink>
-    </div>
+        <NuxtLink
+          :to="chartTarget"
+          class="cf-navlink eyebrow inline-flex min-h-11 items-center gap-2.5 text-muted hover:text-default"
+        >
+          CONTINUAR NO GRÁFICO
+          <UIcon
+            name="i-lucide-arrow-right"
+            class="size-4"
+            aria-hidden="true"
+          />
+        </NuxtLink>
+      </div>
+
+      <p class="mt-10 max-w-[62ch] text-[13px] text-dimmed">
+        Leia as previsões como cenários, não como recomendação de compra ou venda.
+      </p>
+    </section>
   </div>
 </template>

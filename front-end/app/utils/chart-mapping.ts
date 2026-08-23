@@ -123,3 +123,20 @@ export function latestOpenTime(rows: readonly Kline[]): string | null {
   }
   return best
 }
+
+/**
+ * Pares (superior, inferior) das bandas de Bollinger para o preenchimento de 5 %.
+ * Linhas em warm-up (`null`) são descartadas: o polígono quebra no gap, nunca
+ * fecha no zero.
+ */
+export function featuresToBand(rows: readonly FeatureRow[]): { time: UTCTimestamp, upper: number, lower: number }[] {
+  const points = rows
+    .map((r) => {
+      const upper = r.bb_upper
+      const lower = r.bb_lower
+      if (upper === null || upper === undefined || lower === null || lower === undefined) return null
+      return { time: toUtcSeconds(r.timestamp), upper, lower }
+    })
+    .filter((p): p is { time: UTCTimestamp, upper: number, lower: number } => p !== null)
+  return sortAscendingUnique(points)
+}

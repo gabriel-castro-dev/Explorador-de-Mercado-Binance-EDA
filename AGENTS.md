@@ -87,7 +87,7 @@ app/
                 IndicatorToggles · Summary24hStrip · Tickers24hTable · MarketListMobile · EmptyState/ErrorState/ChartSkeleton · auth/*
   utils/        constants (timeframes, INDICATOR_DEFS com cores/traços) · format (pt-BR, UTC, "há X") · api-errors · chart-mapping · tickers
   types/        openapi.d.ts (GERADO por `pnpm api:types` — nunca editar) · api.ts (aliases Kline, FeatureRow, Ticker24h…)
-  assets/css/   main.css — tokens de design light/dark (docs/design/tokens.md), utilitários num/eyebrow/text-up/text-down
+  assets/css/   main.css — tokens visuais; a especificação normativa de UI/UX é docs/design/Design.md
 ```
 
 Contrato da API: `front-end/openapi/openapi.json` é exportado por `back-end/scripts/export_openapi.py`; o job `openapi-types` do CI falha se o JSON ou `openapi.d.ts` ficarem para trás. Respostas são newest-first (o mapping reverte), indicadores `null` viram gaps (`WhitespaceData`), `detail` é string no 401 e array no 422, 5xx é texto — tudo normalizado em `utils/api-errors.ts`.
@@ -111,3 +111,7 @@ The five canonical triage roles, each label string equal to its name. See `docs/
 ### Domain docs
 
 Single-context: `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+### UI/UX
+
+Para qualquer implementação, revisão ou alteração visual do front-end, leia `docs/design/Design.md` por inteiro. Ele é a única fonte normativa de UI/UX; os PNGs atuais ficam em `docs/design/mockups/current/`.

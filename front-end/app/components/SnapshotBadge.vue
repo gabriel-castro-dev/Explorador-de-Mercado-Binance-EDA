@@ -1,47 +1,58 @@
 <script setup lang="ts">
 import type { FreshnessState } from '~/composables/useFreshness'
 
-/** Selo de snapshot (ux-spec §1/§6): mono, caixa alta, ponto de estado; nunca "live". */
+/**
+ * Declaração de frescor (Design.md §13.1). Nunca "live", "ao vivo" ou "tempo real".
+ *
+ * `line` é a forma padrão: faixa tipográfica aberta, como nos mockups.
+ * `chip` é a cápsula, reservada a toolbars apertadas. Stale sempre ganha
+ * dourado + ícone + texto — cor nunca é o único canal.
+ */
 const props = withDefaults(defineProps<{
   state: FreshnessState
   label: string
   prefix?: string
-}>(), { prefix: 'SNAPSHOT' })
+  variant?: 'line' | 'chip'
+}>(), { prefix: 'SNAPSHOT', variant: 'line' })
 
-const tooltip = 'Candles e indicadores atualizam 1x/dia (~00:05 UTC); resumo 24h de hora em hora. Nada é tempo real.'
+const TOOLTIP = 'Candles e indicadores atualizam 1x/dia (~00:05 UTC); resumo 24h de hora em hora. Nada é tempo real.'
+
+const stale = computed(() => props.state === 'stale')
 </script>
 
 <template>
   <UTooltip
-    :text="tooltip"
+    :text="TOOLTIP"
     :delay-duration="200"
   >
     <span
       tabindex="0"
-      class="num inline-flex h-8 max-w-full items-center gap-2 rounded-md border px-2.5 text-[11px]"
-      :class="props.state === 'stale' ? 'border-(--cf-warning)/50 bg-warn text-warn' : 'border-default bg-solid-surface text-muted'"
+      class="num inline-flex max-w-full items-center gap-2 rounded-md text-[11px] lg:text-[12px]"
+      :class="[
+        props.variant === 'chip' ? 'h-9 border px-3' : 'py-1',
+        props.variant === 'chip'
+          ? (stale ? 'border-[var(--cf-warn)]/50 bg-warn-soft text-warn' : 'border-default text-muted')
+          : (stale ? 'text-warn' : 'text-muted'),
+      ]"
       aria-live="polite"
     >
       <UIcon
-        v-if="props.state === 'stale'"
+        v-if="stale"
         name="i-lucide-triangle-alert"
         class="size-3.5 shrink-0"
         aria-hidden="true"
       />
       <span
-        v-else
-        class="inline-block size-1.5 shrink-0 rounded-full"
-        :class="props.state === 'fresh' ? 'bg-(--cf-cyan)' : 'bg-(--ui-text-dimmed)'"
-        aria-hidden="true"
-      />
-      <span class="eyebrow shrink-0">{{ props.prefix }}</span>
+        class="eyebrow shrink-0"
+        :class="stale ? 'text-warn' : 'text-[var(--cf-electric)]'"
+      >{{ props.prefix }}</span>
       <span
-        class="h-3.5 w-px shrink-0 bg-(--ui-border)"
+        class="shrink-0 text-dimmed"
         aria-hidden="true"
-      />
+      >·</span>
       <USkeleton
         v-if="props.state === 'loading'"
-        class="h-3 w-40"
+        class="h-3 w-44"
       />
       <span
         v-else

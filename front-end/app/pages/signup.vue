@@ -3,7 +3,7 @@ import * as z from 'zod'
 import type { FormSubmitEvent } from '@nuxt/ui'
 
 definePageMeta({ layout: 'auth', middleware: 'guest' })
-useHead({ title: 'Criar conta · crypto forecasting' })
+useHead({ title: 'Criar conta · CRYPTO FORECASTING' })
 
 const { signUp } = useAuthActions()
 const pendingEmail = usePendingEmail()
@@ -42,17 +42,17 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
 
 <template>
   <div>
-    <h1 class="text-[20px] font-semibold text-highlighted">
+    <h1 class="cf-h1">
       Criar conta
     </h1>
-    <p class="mt-1 text-[13px] text-muted">
+    <p class="mt-2 text-[15px] text-muted">
       Você receberá um link para confirmar o e-mail.
     </p>
 
     <UForm
       :schema="schema"
       :state="state"
-      class="mt-5 space-y-4"
+      class="mt-7 space-y-5"
       :validate-on-input-delay="300"
       @submit="onSubmit"
     >
@@ -110,7 +110,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
       />
     </UForm>
 
-    <p class="mt-5 text-center text-[13px] text-muted">
+    <p class="mt-6 text-[14px] text-muted">
       Já tem conta?
       <NuxtLink
         to="/login"
