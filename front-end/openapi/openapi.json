@@ -328,6 +328,78 @@
         }
       }
     },
+    "/api/v1/preferences": {
+      "get": {
+        "tags": [
+          "preferences"
+        ],
+        "summary": "Get Preferences",
+        "description": "Preferências do usuário autenticado.\n\nUm usuário que nunca salvou nada recebe os valores padrão (200, não 404),\npara o app abrir sem tratamento especial na primeira visita. O e-mail é\nsomente leitura e vem do token do Supabase, não do Firestore.",
+        "operationId": "get_preferences_api_v1_preferences_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferencesOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "preferences"
+        ],
+        "summary": "Save Preferences",
+        "description": "Substitui as preferências do usuário autenticado.\n\nIdempotente: reenviar o mesmo payload produz o mesmo documento. O dono do\ndocumento vem sempre do token — `user_id` ou `email` no corpo são\nrejeitados com 422.",
+        "operationId": "save_preferences_api_v1_preferences_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferencesIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferencesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -352,6 +424,19 @@
   },
   "components": {
     "schemas": {
+      "ChartSettings": {
+        "properties": {
+          "hollow_up_candles": {
+            "type": "boolean",
+            "title": "Hollow Up Candles",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ChartSettings",
+        "description": "Chart rendering preferences (accessibility)."
+      },
       "FeatureRowOut": {
         "properties": {
           "symbol": {
@@ -747,6 +832,146 @@
         "title": "KlineOut",
         "description": "One candlestick row from klines_{15m,1h,1d}."
       },
+      "NotificationSettings": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": false
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "email",
+              "sms",
+              "whatsapp"
+            ],
+            "title": "Channel",
+            "default": "email"
+          },
+          "topics": {
+            "$ref": "#/components/schemas/NotificationTopics"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "NotificationSettings",
+        "description": "Digest switch, delivery channel and selected topics."
+      },
+      "NotificationTopics": {
+        "properties": {
+          "forecast_gap": {
+            "type": "boolean",
+            "title": "Forecast Gap",
+            "default": false
+          },
+          "volume_movers": {
+            "type": "boolean",
+            "title": "Volume Movers",
+            "default": false
+          },
+          "volatility": {
+            "type": "boolean",
+            "title": "Volatility",
+            "default": false
+          },
+          "model_runs": {
+            "type": "boolean",
+            "title": "Model Runs",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "NotificationTopics",
+        "description": "Which daily digest topics the user opted into."
+      },
+      "PreferencesIn": {
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\+[1-9]\\d{7,14}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "notifications": {
+            "$ref": "#/components/schemas/NotificationSettings"
+          },
+          "chart": {
+            "$ref": "#/components/schemas/ChartSettings"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "PreferencesIn",
+        "description": "Payload accepted when saving preferences.\n\n``extra=\"forbid\"`` is deliberate: it rejects any attempt to smuggle\n``user_id`` or ``email`` into the document. The owner of the document\nalways comes from the validated token, never from the request body."
+      },
+      "PreferencesOut": {
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\+[1-9]\\d{7,14}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "notifications": {
+            "$ref": "#/components/schemas/NotificationSettings"
+          },
+          "chart": {
+            "$ref": "#/components/schemas/ChartSettings"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "title": "PreferencesOut",
+        "description": "Preferences returned to the client.\n\n``extra=\"ignore\"`` (not ``forbid``): documents written by an older\nschema version must never break a read."
+      },
       "SymbolOut": {
         "properties": {
           "symbol": {
@@ -1015,6 +1240,10 @@
     {
       "name": "tickers",
       "description": "Snapshot 24h mais recente por ativo."
+    },
+    {
+      "name": "preferences",
+      "description": "Preferencias do usuario autenticado (Firestore): dados pessoais, notificacoes e acessibilidade."
     }
   ]
 }

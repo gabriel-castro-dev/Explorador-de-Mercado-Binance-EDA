@@ -223,7 +223,14 @@ SUPABASE_URL=https://seu-projeto.supabase.co
 SUPABASE_KEY=sua-service-role-key
 BINANCE_API_KEY=sua-api-key-da-binance
 BINANCE_API_SECRET=seu-secret-da-binance
+
+# Preferências do usuário (Firestore) — só a API precisa disso
+FIREBASE_CREDENTIALS_PATH=./crypto-forecasting-preferences-firebase-adminsdk-XXXX.json
 ```
+
+> A credencial do Firebase **nunca** vai para o git (coberta pelo `.gitignore`)
+> nem para dentro da imagem Docker. No container, monte o arquivo como volume
+> read-only ou passe o conteúdo do JSON em `FIREBASE_CREDENTIALS_JSON`.
 
 > Os dados de mercado vêm da Binance **real** por padrão (endpoints públicos —
 > as chaves não precisam de permissões especiais). `USE_TESTNET=True` existe
@@ -321,6 +328,8 @@ Documentação interativa completa: `/docs` (Swagger) e `/redoc` com a API rodan
 | GET | `/api/v1/klines/{timeframe}` | Candles OHLCV, mais recente primeiro | path: `15m`\|`1h`\|`1d` · query: `symbol` (obrigatório), `limit` (1-1000, padrão 200), `start`/`end` (ISO 8601) |
 | GET | `/api/v1/features/{timeframe}` | Indicadores técnicos calculados | idem klines; `24h` é aceito como sinônimo de `1d` |
 | GET | `/api/v1/tickers/24h` | Snapshot 24h mais recente por ativo | query: `symbol` (opcional) |
+| GET | `/api/v1/preferences` | Preferências do usuário autenticado (padrões se nunca salvou) | — |
+| PUT | `/api/v1/preferences` | Salva as preferências (idempotente) | corpo: `display_name`, `phone` (E.164), `notifications`, `chart` |
 
 ### Obtendo um access token sem o front-end
 

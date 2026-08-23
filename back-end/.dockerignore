@@ -5,3 +5,9 @@ __pycache__
 .pytest_cache
 .env
 .env.*
+
+# Segredos: nenhum .json e necessario no build (uv usa pyproject.toml/uv.lock).
+# A credencial do Firebase chega em runtime por volume ou env var, NUNCA na imagem.
+*.json
+*.pem
+*.key

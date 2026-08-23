@@ -35,6 +35,11 @@ def create_app() -> FastAPI:
                 "Bollinger, ATR...). `24h` é sinônimo de `1d`.",
             },
             {"name": "tickers", "description": "Snapshot 24h mais recente por ativo."},
+            {
+                "name": "preferences",
+                "description": "Preferencias do usuario autenticado (Firestore): dados "
+                "pessoais, notificacoes e acessibilidade.",
+            },
         ],
     )
     application.add_middleware(
@@ -43,7 +48,7 @@ def create_app() -> FastAPI:
             origin.strip() for origin in settings.API_CORS_ORIGINS.split(",") if origin.strip()
         ],
         allow_credentials=True,
-        allow_methods=["GET"],
+        allow_methods=["GET", "PUT"],  # PUT: salvar preferencias
         allow_headers=["Authorization", "Content-Type"],
     )
     for router in routers:
