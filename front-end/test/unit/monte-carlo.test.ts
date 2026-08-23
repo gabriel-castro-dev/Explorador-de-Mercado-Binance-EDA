@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  filterPaths,
   quantile,
   quantileBand,
   sampleIndices,
@@ -48,6 +49,38 @@ describe('selectHighlighted', () => {
     for (const index of Object.values(picked!)) {
       expect(paths[index]).toBeDefined()
     }
+  })
+})
+
+describe('filterPaths', () => {
+  it('remove trajetórias vazias sem desalinhar a seleção por terminal', () => {
+    // Trajetória vazia antes das válidas: os índices deslocam à direita.
+    const original = [[], [100, 104, 108], [100, 99, 96], [100, 101, 102]]
+    const filtered = filterPaths(original)
+    expect(filtered.paths).toEqual([[100, 104, 108], [100, 99, 96], [100, 101, 102]])
+    const picked = selectHighlighted(filtered.paths, filtered.classified)
+    expect(filtered.paths[picked!.best]![2]).toBe(108)
+    expect(filtered.paths[picked!.worst]![2]).toBe(96)
+  })
+
+  it('remapeia a classificação da API para o array filtrado', () => {
+    const original = [[], [100, 104, 108], [100, 99, 96]]
+    const filtered = filterPaths(original, { best: 1, worst: 2 })
+    expect(filtered.classified).toEqual({ best: 0, worst: 1, base: undefined })
+  })
+
+  it('classificação apontando para trajetória removida cai no fallback', () => {
+    const original = [[], [100, 104, 108], [100, 99, 96]]
+    const filtered = filterPaths(original, { best: 0 })
+    expect(filtered.classified?.best).toBeUndefined()
+    // selectHighlighted volta à seleção por terminal.
+    expect(selectHighlighted(filtered.paths, filtered.classified)).toEqual({ best: 0, worst: 1, base: 1 })
+  })
+
+  it('sem classificação devolve undefined e preserva trajetórias não vazias', () => {
+    const filtered = filterPaths([[1], [2]])
+    expect(filtered.classified).toBeUndefined()
+    expect(filtered.paths).toHaveLength(2)
   })
 })
 

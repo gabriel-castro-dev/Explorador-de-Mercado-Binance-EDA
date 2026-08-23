@@ -30,6 +30,7 @@ const reduced = useReducedMotion()
 const parts = computed(() => splitReading(props.reading?.text))
 const view = computed(() => {
   if (props.reading) return 'ready' as const
+  if (props.readingStatus === 'error') return 'error' as const
   if (props.readingStatus === 'pending' || props.readingStatus === 'idle') return 'loading' as const
   return 'empty' as const
 })
@@ -100,7 +101,30 @@ const view = computed(() => {
           <span class="sr-only">Carregando a leitura do dia…</span>
         </div>
 
-        <!-- Vazio/erro: motivo provável + próxima ação, sem número inventado -->
+        <!-- Erro: dizer o que falhou + Tentar novamente (Design.md §13.2) -->
+        <div
+          v-else-if="view === 'error'"
+          class="mt-5 max-w-[56ch]"
+          role="alert"
+        >
+          <p class="cf-h2">
+            A leitura do dia não carregou.
+          </p>
+          <p class="cf-body mt-4">
+            A solicitação ao serviço de leitura falhou — pode ser instabilidade
+            momentânea. Os rankings abaixo continuam com os dados do último snapshot.
+          </p>
+          <UButton
+            class="mt-5"
+            color="neutral"
+            variant="outline"
+            icon="i-lucide-refresh-cw"
+            label="Tentar novamente"
+            @click="emit('retry')"
+          />
+        </div>
+
+        <!-- Vazio: motivo provável + próxima ação, sem número inventado -->
         <div
           v-else-if="view === 'empty'"
           class="mt-5 max-w-[56ch]"
