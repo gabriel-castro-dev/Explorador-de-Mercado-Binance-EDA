@@ -93,13 +93,33 @@ export const CANDLE_COLORS = {
   downHist: 'rgba(229,72,77,.45)',
 } as const
 
-/** Cenários do modelo (melhor/esperada/pior) — tracejadas depois da linha de corte. */
+/**
+ * Cenários do modelo no gráfico de candles — tracejadas depois da linha de corte.
+ * Gelo/ciano/vermelho: o verde `--cf-best` é EXCLUSIVO do melhor caminho do
+ * Monte Carlo (Design.md §4.2) e não aparece aqui.
+ */
 export const SCENARIO_COLORS = {
   best: '#dbe7f5',
   expected: '#5fc4ff',
   worst: '#e5484d',
   band: 'rgba(95,196,255,.08)',
 } as const
+
+/** Monte Carlo (Design.md §14.1): único lugar do sistema onde o verde aparece. */
+export const MONTE_CARLO_COLORS = {
+  best: '#62f6a2',
+  base: '#5fc4ff',
+  worst: '#e5484d',
+  /** Trajetórias secundárias: gelo-azul com baixa opacidade. */
+  path: 'rgba(200,217,239,.08)',
+  /** Faixa de incerteza: nasce estreita na linha de corte e abre com o horizonte. */
+  band: 'rgba(95,196,255,.07)',
+  observed: '#dbe7f5',
+  cut: '#5fc4ff',
+} as const
+
+/** Preenchimento de 5 % entre as bandas de Bollinger (Design.md §14.1). */
+export const BOLLINGER_BAND_FILL = 'rgba(200,217,239,.05)'
 
 export const DEFAULT_INDICATORS: Record<IndicatorKey, boolean> = {
   sma20: true,
@@ -115,7 +135,6 @@ export const DEFAULT_INDICATORS: Record<IndicatorKey, boolean> = {
 
 export const STORAGE_KEYS = {
   indicators: 'cf:indicators:v1',
-  onboarded: 'cf:onboarded:v1',
   hollowCandles: 'cf:hollow-candles:v1',
   macdMobileDismissed: 'cf:macd-mobile:v1',
   scenarios: 'cf:scenarios:v1',

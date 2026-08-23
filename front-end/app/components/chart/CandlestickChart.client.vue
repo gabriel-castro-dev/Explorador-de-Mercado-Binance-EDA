@@ -25,7 +25,8 @@ import {
 import type { FeatureKey, FeatureRow, Kline, Timeframe } from '~/types/api'
 import type { IndicatorPrefs } from '~/composables/useIndicatorPrefs'
 import { CANDLE_COLORS, INDICATOR_BY_KEY, INDICATOR_DEFS, MACD_SIGNAL_COLOR, SCENARIO_COLORS, TIMEFRAME_META, type LineStyleName } from '~/utils/constants'
-import { featureToHistogram, featureToLine, klinesToCandles, klinesToVolume, lastValue, valueAt, warmupInfo, type ScenarioSet } from '~/utils/chart-mapping'
+import { featureToHistogram, featureToLine, featuresToBand, klinesToCandles, klinesToVolume, lastValue, valueAt, warmupInfo, type ScenarioSet } from '~/utils/chart-mapping'
+import { BollingerBandPrimitive } from '~/utils/bollinger-band'
 import { EM_DASH, formatNumber, formatPrice, formatUtcShort, priceDecimals } from '~/utils/format'
 
 const props = defineProps<{
@@ -56,6 +57,7 @@ let macdLine: ISeriesApi<'Line'> | null = null
 let macdSignal: ISeriesApi<'Line'> | null = null
 let macdHist: ISeriesApi<'Histogram'> | null = null
 let scenarioSeries: ISeriesApi<'Line'>[] = []
+let bollingerBand: BollingerBandPrimitive | null = null
 let edgeNotified = false
 
 const candles = computed(() => klinesToCandles(props.klines))
@@ -102,19 +104,19 @@ function chartOptions() {
     autoSize: true,
     layout: {
       background: { type: ColorType.Solid, color: 'transparent' },
-      textColor: cssVar('--ui-text-dimmed', '#66788f'),
-      fontFamily: '"Google Sans Code", ui-monospace, monospace',
+      textColor: cssVar('--cf-text-dim', '#66788f'),
+      fontFamily: '"Geist Mono", ui-monospace, Consolas, monospace',
       fontSize: 11,
-      panes: { separatorColor: cssVar('--ui-border', 'rgba(216,230,245,.14)'), separatorHoverColor: 'rgba(62,134,247,.15)', enableResize: true },
+      panes: { separatorColor: cssVar('--cf-hairline', 'rgba(216,231,245,.12)'), separatorHoverColor: 'rgba(62,134,247,.15)', enableResize: true },
     },
     grid: {
       vertLines: { visible: false },
-      horzLines: { color: cssVar('--ui-border-muted', 'rgba(216,230,245,.08)') },
+      horzLines: { color: cssVar('--cf-hairline-soft', 'rgba(216,231,245,.07)') },
     },
     crosshair: {
       mode: CrosshairMode.Normal,
-      vertLine: { color: cssVar('--ui-text-dimmed', '#66788f'), style: LineStyle.Dashed, width: 1 as const, labelBackgroundColor: cssVar('--cf-solid', '#0c1626') },
-      horzLine: { color: cssVar('--ui-text-dimmed', '#66788f'), style: LineStyle.Dashed, width: 1 as const, labelBackgroundColor: cssVar('--cf-solid', '#0c1626') },
+      vertLine: { color: cssVar('--cf-text-dim', '#66788f'), style: LineStyle.Dashed, width: 1 as const, labelBackgroundColor: cssVar('--cf-surface-solid', '#0b1422') },
+      horzLine: { color: cssVar('--cf-text-dim', '#66788f'), style: LineStyle.Dashed, width: 1 as const, labelBackgroundColor: cssVar('--cf-surface-solid', '#0b1422') },
     },
     rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.08, bottom: 0.22 } },
     timeScale: {
@@ -139,6 +141,10 @@ function buildChart() {
 
 function clearSeries() {
   if (!chart) return
+  if (bollingerBand && candleSeries) {
+    candleSeries.detachPrimitive(bollingerBand)
+    bollingerBand = null
+  }
   for (const s of overlaySeries.values()) chart.removeSeries(s)
   overlaySeries.clear()
   for (const s of scenarioSeries) chart.removeSeries(s)
@@ -199,6 +205,12 @@ function buildSeries() {
       s.setData(featureToLine(props.features, field))
       overlaySeries.set(field, s)
     }
+    // Banda de 5 % entre superior e inferior (Design.md §14.1).
+    if (def.key === 'bb' && candleSeries) {
+      bollingerBand = new BollingerBandPrimitive()
+      candleSeries.attachPrimitive(bollingerBand)
+      bollingerBand.setData(featuresToBand(props.features))
+    }
   }
 
   let paneIndex = 1
@@ -228,7 +240,7 @@ function buildSeries() {
       autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 100 } }),
     }, paneIndex)
     rsiSeries.setData(featureToLine(props.features, 'rsi_14'))
-    const border = cssVar('--ui-border', 'rgba(216,230,245,.14)')
+    const border = cssVar('--cf-hairline', 'rgba(216,231,245,.12)')
     for (const price of [30, 70]) {
       rsiSeries.createPriceLine({ price, color: border, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: '' })
     }
@@ -473,7 +485,48 @@ const ariaLabel = computed(() => {
 
 const tfLabel = computed(() => TIMEFRAME_META[props.tf].label)
 
-defineExpose({ fitContent: () => chart?.timeScale().fitContent() })
+/**
+ * Alternativas por teclado/botão ao pan e zoom por ponteiro (Design.md §14.2).
+ * Trabalham em intervalo lógico (índices de vela), não em coordenadas de tela.
+ */
+function panBy(bars: number) {
+  const scale = chart?.timeScale()
+  const range = scale?.getVisibleLogicalRange()
+  if (!scale || !range) return
+  scale.setVisibleLogicalRange({ from: range.from + bars, to: range.to + bars })
+  updateCutLine()
+}
+
+/** `factor > 1` afasta; `factor < 1` aproxima. Mantém o centro da janela. */
+function zoomBy(factor: number) {
+  const scale = chart?.timeScale()
+  const range = scale?.getVisibleLogicalRange()
+  if (!scale || !range) return
+  const center = (range.from + range.to) / 2
+  const half = Math.max(3, ((range.to - range.from) / 2) * factor)
+  scale.setVisibleLogicalRange({ from: center - half, to: center + half })
+  updateCutLine()
+}
+
+function fitContent() {
+  chart?.timeScale().fitContent()
+  updateCutLine()
+}
+
+/** Passo de navegação: ~15 % da janela visível, no mínimo uma vela. */
+function visibleStep(): number {
+  const range = chart?.timeScale().getVisibleLogicalRange()
+  if (!range) return 10
+  return Math.max(1, Math.round((range.to - range.from) * 0.15))
+}
+
+defineExpose({
+  fitContent,
+  panLeft: () => panBy(-visibleStep()),
+  panRight: () => panBy(visibleStep()),
+  zoomIn: () => zoomBy(0.75),
+  zoomOut: () => zoomBy(1 / 0.75),
+})
 </script>
 
 <template>
@@ -500,14 +553,13 @@ defineExpose({ fitContent: () => chart?.timeScale().fitContent() })
         style="border-color: rgba(95,196,255,.7)"
       />
       <div
-        class="absolute inset-y-0 left-0 right-0 opacity-60"
-        style="background: repeating-linear-gradient(135deg, transparent 0 6px, var(--cf-forecast-fill) 6px 7px)"
+        class="absolute inset-y-0 right-0 left-0 opacity-60"
+        style="background: repeating-linear-gradient(135deg, transparent 0 6px, rgba(95, 196, 255, 0.1) 6px 7px)"
       />
       <span
-        v-if="!hasScenarios"
-        class="num text-ai absolute right-2 whitespace-nowrap text-[11px]"
-        :style="{ top: `${(paneTops[1] ?? (container?.clientHeight ?? 0) - 30) - 26}px`, textShadow: '0 0 4px var(--ui-bg-elevated)' }"
-      >previsão · em breve</span>
+        class="eyebrow absolute top-2 left-2 whitespace-nowrap text-[10px] text-ai"
+        style="text-shadow: 0 0 6px var(--cf-bg-0)"
+      >ÚLTIMO DADO OBSERVADO</span>
     </div>
 
     <!-- Legenda pane 0 -->

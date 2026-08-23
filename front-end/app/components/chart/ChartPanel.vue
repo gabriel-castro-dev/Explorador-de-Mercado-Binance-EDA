@@ -3,20 +3,24 @@ import type { TableColumn } from '@nuxt/ui'
 import type { FeatureRow, Kline, Timeframe } from '~/types/api'
 import type { IndicatorPrefs } from '~/composables/useIndicatorPrefs'
 import type { ScenarioSet } from '~/utils/chart-mapping'
+import type { AsyncStatus } from '~/utils/async-state'
+import { asyncView, isRefreshing } from '~/utils/async-state'
 import { LIMIT_BY_TF, TIMEFRAME_META, symbolName } from '~/utils/constants'
 import { describeError, messageOf } from '~/utils/api-errors'
 import { EM_DASH, formatNumber, formatPrice, formatUtcShort } from '~/utils/format'
 
-type Status = 'idle' | 'pending' | 'success' | 'error'
-
+/**
+ * Paisagem do gráfico (Design.md §10): full-width dentro das margens, sem card
+ * externo e sem moldura luminosa. Estados preservam a geometria final.
+ */
 const props = defineProps<{
   symbol: string
   tf: Timeframe
   klines: readonly Kline[]
   features: readonly FeatureRow[]
-  klinesStatus: Status
+  klinesStatus: AsyncStatus
   klinesError: unknown
-  featuresStatus: Status
+  featuresStatus: AsyncStatus
   featuresError: unknown
   prefs: IndicatorPrefs
   hollowUp: boolean
@@ -39,25 +43,44 @@ const emit = defineEmits<{
 const tableOpen = ref(false)
 const hasData = computed(() => props.klines.length > 0)
 
-/** Mantém o gráfico anterior visível e esmaecido durante a troca (sem flash). */
-const view = computed<'loading' | 'empty' | 'error' | 'ready'>(() => {
-  if (props.klinesStatus === 'error' && !hasData.value) return 'error'
-  if (hasData.value) return 'ready'
-  if (props.klinesStatus === 'pending' || props.klinesStatus === 'idle') return 'loading'
-  return 'empty'
-})
-const refreshing = computed(() => props.klinesStatus === 'pending' && hasData.value)
+const view = computed(() => asyncView(props.klinesStatus, hasData.value))
+const refreshing = computed(() => isRefreshing(props.klinesStatus, hasData.value))
 
 const meta = computed(() => TIMEFRAME_META[props.tf])
 const canLoadOlder = computed(() => props.tf === '1d' && props.klines.length >= LIMIT_BY_TF['1d'])
-const countLabel = computed(() => {
-  const n = props.klines.length
-  return `${formatNumber(n, 0)} velas · ${meta.value.retention}`
-})
+const countLabel = computed(() => `${formatNumber(props.klines.length, 0)} velas · ${meta.value.retention}`)
 const altTf = computed<Timeframe>(() => (props.tf === '1d' ? '1h' : '1d'))
 const panes = computed(() => 1 + (props.prefs.rsi ? 1 : 0) + (props.prefs.macd ? 1 : 0))
 
-// ---- Tabela alternativa (acessibilidade / conferência) ----
+/** Nenhuma trajetória real do modelo: a área depois da linha de corte fica reservada. */
+const hasScenarios = computed(() => Boolean(
+  props.showScenarios && props.scenarios
+  && (props.scenarios.best.length || props.scenarios.expected.length || props.scenarios.worst.length),
+))
+
+// ---- Controles de pan/zoom acessíveis (Design.md §14.2) ----
+interface ChartHandle {
+  fitContent: () => void
+  panLeft: () => void
+  panRight: () => void
+  zoomIn: () => void
+  zoomOut: () => void
+}
+const chartRef = ref<ChartHandle | null>(null)
+
+const NAV_ACTIONS = [
+  { key: 'panLeft', icon: 'i-lucide-chevron-left', label: 'Deslocar para trás' },
+  { key: 'panRight', icon: 'i-lucide-chevron-right', label: 'Deslocar para frente' },
+  { key: 'zoomOut', icon: 'i-lucide-minus', label: 'Afastar' },
+  { key: 'zoomIn', icon: 'i-lucide-plus', label: 'Aproximar' },
+  { key: 'fitContent', icon: 'i-lucide-maximize-2', label: 'Enquadrar tudo' },
+] as const
+
+function runNav(key: (typeof NAV_ACTIONS)[number]['key']) {
+  chartRef.value?.[key]()
+}
+
+// ---- Tabela alternativa (Design.md §14.2) ----
 interface TableRow { open_time: string, open: number, high: number, low: number, close: number, volume: number, sma_20: number | null, sma_50: number | null, rsi_14: number | null, macd: number | null }
 const tableRows = computed<TableRow[]>(() => {
   const byTime = new Map(props.features.map(f => [Date.parse(f.timestamp), f]))
@@ -88,29 +111,34 @@ const errorMessage = computed(() => messageOf(props.klinesError))
 </script>
 
 <template>
-  <!-- Moldura de vidro; a área do canvas é sólida (vidro atrás de canvas é proibido — Design.md §4). -->
-  <UCard
-    class="flex h-full min-h-[520px] flex-col overflow-hidden"
-    :ui="{ root: 'flex flex-col', body: 'relative flex-1 p-0 sm:p-0 min-h-0 bg-solid-surface', footer: 'px-3 py-2 sm:px-3' }"
-  >
-    <div class="relative h-full min-h-[440px]">
-      <!-- Alerta de dados velhos (o gráfico continua utilizável) -->
-      <UAlert
-        v-if="props.stale && view === 'ready'"
-        class="absolute inset-x-3 top-3 z-10 border border-(--cf-warning)/40 bg-warn text-warn"
-        icon="i-lucide-triangle-alert"
-        color="neutral"
-        variant="subtle"
-        :ui="{ root: 'py-2', title: 'text-[13px]', description: 'text-[12px]' }"
-        title="Dados mais antigos que o esperado."
-        :description="`Os candles deveriam ter sido atualizados há ~${props.hoursLate} h (00:05 UTC). O gráfico continua utilizável; os valores podem não refletir o último dia.`"
-        :actions="[{ label: 'Tentar novamente', variant: 'link', color: 'neutral', class: 'text-warn underline', onClick: () => emit('retry') }]"
+  <div class="flex h-full min-h-0 flex-col">
+    <!-- Aviso de dados velhos: inline, sem bloquear o gráfico (Design.md §13.2) -->
+    <p
+      v-if="props.stale && view === 'ready'"
+      class="cf-surface mb-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 px-3.5 py-2.5 text-[13px] text-warn"
+      role="status"
+    >
+      <UIcon
+        name="i-lucide-triangle-alert"
+        class="size-4 shrink-0"
+        aria-hidden="true"
       />
+      <span class="text-hi">Dados mais antigos que o esperado.</span>
+      <span class="text-muted">Os candles deveriam ter sido atualizados há ~{{ props.hoursLate }} h (00:05 UTC). O gráfico continua utilizável.</span>
+      <UButton
+        variant="link"
+        size="xs"
+        class="p-0 text-warn"
+        label="Tentar novamente"
+        @click="emit('retry')"
+      />
+    </p>
 
-      <!-- Indicadores falharam (candles seguem) -->
-      <div
+    <div class="relative min-h-0 flex-1">
+      <!-- Indicadores falharam: os candles seguem (Design.md §13.2) -->
+      <p
         v-if="view === 'ready' && props.featuresStatus === 'error'"
-        class="absolute right-3 top-3 z-10 rounded-md border border-default bg-elevated/95 px-2.5 py-1.5 text-[12px] text-muted"
+        class="cf-surface absolute top-3 right-3 z-10 flex items-center gap-2 px-3 py-2 text-[13px] text-muted"
         role="alert"
       >
         Indicadores não carregaram.
@@ -121,10 +149,10 @@ const errorMessage = computed(() => messageOf(props.klinesError))
           class="p-0"
           @click="emit('retry-features')"
         />
-      </div>
+      </p>
 
       <ChartSkeleton
-        v-if="view === 'loading'"
+        v-if="view === 'loading' || view === 'idle'"
         :label="`Carregando ${props.symbol} · ${props.tf}…`"
         :panes="panes"
       />
@@ -150,12 +178,13 @@ const errorMessage = computed(() => messageOf(props.klinesError))
 
       <div
         v-else
-        class="h-full transition-opacity"
-        :class="refreshing ? 'opacity-60' : ''"
+        class="h-full transition-opacity duration-200"
+        :class="refreshing ? 'opacity-55' : ''"
         :aria-busy="refreshing"
       >
         <ClientOnly>
           <ChartCandlestickChart
+            ref="chartRef"
             :symbol="props.symbol"
             :tf="props.tf"
             :klines="props.klines"
@@ -174,9 +203,10 @@ const errorMessage = computed(() => messageOf(props.klinesError))
             />
           </template>
         </ClientOnly>
+
         <div
           v-if="canLoadOlder"
-          class="absolute left-3 top-1/2 z-10 -translate-y-1/2"
+          class="absolute top-1/2 left-2 z-10 -translate-y-1/2"
         >
           <UButton
             color="neutral"
@@ -190,6 +220,53 @@ const errorMessage = computed(() => messageOf(props.klinesError))
         </div>
       </div>
     </div>
+
+    <!-- Rodapé de interação (Design.md §10) -->
+    <div class="cf-hairline-t mt-3 flex flex-wrap items-center justify-between gap-x-5 gap-y-2 pt-3">
+      <p class="num text-[11px] text-dimmed">
+        Eixo em UTC · arraste para navegar · scroll para zoom · linha de corte = último dado observado
+      </p>
+
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div
+          v-if="view === 'ready'"
+          class="flex items-center gap-0.5"
+          role="group"
+          aria-label="Navegar no gráfico"
+        >
+          <UButton
+            v-for="action in NAV_ACTIONS"
+            :key="action.key"
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            :icon="action.icon"
+            :aria-label="action.label"
+            @click="runNav(action.key)"
+          />
+        </div>
+        <span class="num text-[11px] text-dimmed">{{ countLabel }}</span>
+        <UButton
+          v-if="hasData"
+          variant="link"
+          color="neutral"
+          size="xs"
+          class="p-0 text-[11px]"
+          label="Ver como tabela"
+          icon="i-lucide-table"
+          @click="tableOpen = true"
+        />
+      </div>
+    </div>
+
+    <!-- Área reservada à previsão: estado honesto, nunca números fabricados -->
+    <p
+      v-if="view === 'ready' && !hasScenarios"
+      class="num mt-2 text-[11px] text-dimmed"
+    >
+      O modelo ainda não publicou previsões para este ativo.
+    </p>
+
     <UModal
       v-model:open="tableOpen"
       :title="`${props.symbol} · ${props.tf} · últimas 50 velas`"
@@ -207,24 +284,5 @@ const errorMessage = computed(() => messageOf(props.klinesError))
         </div>
       </template>
     </UModal>
-
-    <template #footer>
-      <div class="num flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[11px] text-dimmed">
-        <span>Eixo em UTC · arraste para navegar · scroll para zoom · ┆ linha de corte = último dado observado</span>
-        <span class="flex items-center gap-3">
-          <span>{{ countLabel }}</span>
-          <UButton
-            v-if="hasData"
-            variant="link"
-            color="neutral"
-            size="xs"
-            class="p-0 text-[11px]"
-            label="Ver como tabela"
-            icon="i-lucide-table"
-            @click="tableOpen = true"
-          />
-        </span>
-      </div>
-    </template>
-  </UCard>
+  </div>
 </template>

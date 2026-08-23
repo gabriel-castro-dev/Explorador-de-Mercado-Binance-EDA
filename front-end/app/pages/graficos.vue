@@ -6,11 +6,14 @@ import { latestOpenTime } from '~/utils/chart-mapping'
 import { latestSnapshotAt, sortTickers } from '~/utils/tickers'
 import { formatUtc } from '~/utils/format'
 
+/**
+ * Gráficos (Design.md §10): paisagem full-width dentro das margens, dock funcional
+ * de indicadores e resumo 24h aberto abaixo. Sem card, sem moldura luminosa.
+ */
 const { symbol, tf, ensureSymbol } = useDashboardQuery()
 const indicators = useIndicatorPrefs()
 const hollow = useHollowCandles()
 const scenarios = useScenarioPref()
-const onboarded = useOnboarded()
 const drawerOpen = useIndicatorsDrawer()
 const lastSymbol = useLastSymbol()
 const toast = useToast()
@@ -31,7 +34,7 @@ watch([() => symbols.data.value, () => tickers.status.value], () => {
   void ensureSymbol(first)
 }, { immediate: true })
 
-// Atalho "Continuar de onde parou" no Início
+// Atalho "Continuar no gráfico" no Início
 watch(symbol, (s) => {
   if (s) lastSymbol.value = s
 }, { immediate: true })
@@ -94,24 +97,19 @@ async function refreshAll() {
   }
 }
 
-// ---- Responsivo ----
+// ---- Responsivo (Design.md §10) ----
 const isDesktop = useMediaQuery('(min-width: 1024px)')
 const isMobile = useMediaQuery('(max-width: 767px)')
 const collapsibleOpen = ref(false)
 
-// Mobile na 1ª visita: MACD desligado por padrão (ux-spec §8)
+// Mobile na 1ª visita: RSI ligado, MACD desligado
 onMounted(() => {
   if (isMobile.value && !localStorage.getItem(STORAGE_KEYS.macdMobileDismissed)) {
     indicators.toggle('macd', false)
+    indicators.toggle('rsi', true)
     localStorage.setItem(STORAGE_KEYS.macdMobileDismissed, '1')
   }
 })
-
-// ---- Onboarding ----
-const showHint = computed(() => !onboarded.value && !!symbol.value && klines.status.value === 'success' && klines.data.value.length > 0)
-function dismissHint() {
-  onboarded.value = true
-}
 
 const selectorEl = ref<{ $el?: HTMLElement } | null>(null)
 function focusSelector() {
@@ -121,7 +119,7 @@ function focusSelector() {
   btn?.click()
 }
 
-const title = computed(() => (symbol.value ? `${symbol.value} · ${tf.value} · crypto forecasting` : 'Gráficos · crypto forecasting'))
+const title = computed(() => (symbol.value ? `${symbol.value} · ${tf.value} · CRYPTO FORECASTING` : 'Gráficos · CRYPTO FORECASTING'))
 useHead({ title })
 
 function switchTf(next: Timeframe) {
@@ -130,35 +128,22 @@ function switchTf(next: Timeframe) {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <h1 class="sr-only">
-      Gráficos
-    </h1>
-
-    <!-- Toolbar -->
-    <div class="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between">
-      <div class="flex flex-wrap items-center gap-3">
-        <SymbolSelector
-          ref="selectorEl"
-          v-model="symbol"
-          :symbols="symbols.data.value"
-          :tickers="tickers.data.value"
-          :status="symbols.status.value"
-          @retry="symbols.refresh()"
-        />
-        <TimeframeToggle v-model="tf" />
-        <UButton
-          v-if="isMobile"
-          color="neutral"
-          variant="outline"
-          icon="i-lucide-sliders-horizontal"
-          label="Indicadores"
-          aria-haspopup="dialog"
-          :aria-expanded="drawerOpen"
-          @click="drawerOpen = true"
-        />
+  <div class="cf-gutter cf-shell pt-10 pb-16 md:pt-12 md:pb-20">
+    <!-- Cabeçalho + toolbar: ativo, timeframe, snapshot e atualizar -->
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div class="min-w-0">
+        <h1 class="cf-h2 uppercase">
+          Gráficos
+        </h1>
+        <p class="num mt-2 truncate text-[13px] text-muted">
+          <span translate="no">{{ symbol ?? '—' }}</span>
+          <template v-if="symbol && symbolName(symbol)">
+            · {{ symbolName(symbol) }}
+          </template>
+          · velas de {{ tf }}
+        </p>
       </div>
-      <div class="flex flex-wrap items-center gap-2 md:justify-end">
+      <div class="flex flex-wrap items-center gap-x-5 gap-y-2 lg:justify-end">
         <SnapshotBadge
           :state="klinesFresh.state.value"
           :label="klinesFresh.label.value"
@@ -175,22 +160,46 @@ function switchTf(next: Timeframe) {
       </div>
     </div>
 
-    <!-- Tablet: painel colapsável acima do gráfico -->
+    <div class="cf-hairline-b mt-5 flex flex-wrap items-center gap-x-6 gap-y-3 pb-4">
+      <SymbolSelector
+        ref="selectorEl"
+        v-model="symbol"
+        :symbols="symbols.data.value"
+        :tickers="tickers.data.value"
+        :status="symbols.status.value"
+        @retry="symbols.refresh()"
+      />
+      <TimeframeToggle v-model="tf" />
+      <UButton
+        v-if="isMobile"
+        class="ms-auto"
+        color="neutral"
+        variant="outline"
+        icon="i-lucide-sliders-horizontal"
+        :label="`Indicadores (${indicators.enabledCount.value})`"
+        aria-haspopup="dialog"
+        :aria-expanded="drawerOpen"
+        @click="drawerOpen = true"
+      />
+    </div>
+
+    <!-- Tablet: indicadores colapsáveis acima do gráfico -->
     <UCollapsible
       v-if="!isDesktop && !isMobile"
       v-model:open="collapsibleOpen"
-      class="glass"
+      class="cf-surface mt-5"
     >
       <UButton
         color="neutral"
         variant="ghost"
         block
-        class="justify-between px-4"
+        class="justify-between px-4 py-3"
         :label="`Indicadores (${indicators.enabledCount.value} ligados)`"
         :trailing-icon="collapsibleOpen ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
       />
       <template #content>
         <IndicatorToggles
+          variant="dock"
           :controller="indicators"
           :features="allFeatures"
           :features-status="features.status.value"
@@ -201,11 +210,11 @@ function switchTf(next: Timeframe) {
       </template>
     </UCollapsible>
 
-    <!-- Gráfico + painel lateral -->
-    <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_232px] xl:grid-cols-[minmax(0,1fr)_264px]">
+    <!-- Paisagem + dock -->
+    <div class="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_248px] lg:gap-8 xl:grid-cols-[minmax(0,1fr)_280px]">
       <div
         class="min-h-[430px] md:min-h-[520px]"
-        style="height: clamp(430px, 65vh, 820px)"
+        style="height: clamp(430px, 62vh, 780px)"
       >
         <ChartPanel
           :symbol="symbol ?? '—'"
@@ -233,51 +242,37 @@ function switchTf(next: Timeframe) {
 
       <aside
         v-if="isDesktop"
-        class="relative flex flex-col gap-3"
+        class="cf-surface self-start"
         aria-label="Indicadores"
       >
-        <OnboardingHint
-          v-if="showHint"
-          :symbol="symbol ?? ''"
-          :tf="tf"
-          @dismiss="dismissHint"
+        <IndicatorToggles
+          variant="dock"
+          :controller="indicators"
+          :features="allFeatures"
+          :features-status="features.status.value"
+          :scenario="scenarios"
+          @retry-features="features.refresh()"
+          @toggle-scenario="(v: boolean) => { scenarios = v }"
         />
-        <div class="glass min-h-[520px] flex-1">
-          <IndicatorToggles
-            :controller="indicators"
-            :features="allFeatures"
-            :features-status="features.status.value"
-            :highlight-key="showHint ? 'sma50' : null"
-            :scenario="scenarios"
-            @retry-features="features.refresh()"
-            @toggle-scenario="(v: boolean) => { scenarios = v }"
-          />
-        </div>
       </aside>
     </div>
 
-    <!-- Resumo 24h do ativo -->
-    <Summary24hStrip
-      :symbol="symbol ?? '—'"
-      :ticker="ticker"
-      :status="tickers.status.value"
-      :freshness="{ state: tickerFresh.state.value, atUtc: tickerFresh.atUtc.value, ago: tickerFresh.ago.value }"
-      @retry="tickers.refresh()"
-    />
+    <!-- Resumo 24h: faixa aberta -->
+    <div class="mt-14 md:mt-20">
+      <Summary24hStrip
+        :symbol="symbol ?? '—'"
+        :ticker="ticker"
+        :status="tickers.status.value"
+        :freshness="{ state: tickerFresh.state.value, atUtc: tickerFresh.atUtc.value, ago: tickerFresh.ago.value }"
+        @retry="tickers.refresh()"
+      />
+    </div>
 
-    <!-- Superfície de previsão: disclaimer fixo (Design.md §6) -->
-    <p class="text-[12px] text-dimmed">
+    <p class="mt-8 max-w-[62ch] text-[13px] text-dimmed">
       Leia as previsões como cenários, não como recomendação de compra ou venda.
     </p>
 
-    <p
-      v-if="symbol && symbolName(symbol)"
-      class="sr-only"
-    >
-      {{ symbolName(symbol) }}
-    </p>
-
-    <!-- Mobile: drawer de indicadores -->
+    <!-- Mobile: drawer inferior de indicadores -->
     <UDrawer
       v-if="isMobile"
       v-model:open="drawerOpen"
