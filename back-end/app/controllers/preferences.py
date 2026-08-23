@@ -1,9 +1,18 @@
 """Read and write endpoints for the signed-in user's preferences."""
 
+import logging
+
 from fastapi import APIRouter, Depends
 
-from app.controllers.deps import CurrentClaimsDep, PreferencesRepoDep, get_claims
+from app.controllers.deps import (
+    CurrentClaimsDep,
+    FirebaseIdentityDep,
+    PreferencesRepoDep,
+    get_claims,
+)
 from app.schemas.preferences import PreferencesIn, PreferencesOut
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/v1/preferences",
@@ -19,13 +28,23 @@ def _to_response(stored: dict | None, email: str | None) -> PreferencesOut:
 
 
 @router.get("")
-def get_preferences(claims: CurrentClaimsDep, repo: PreferencesRepoDep) -> PreferencesOut:
+def get_preferences(
+    claims: CurrentClaimsDep, repo: PreferencesRepoDep, identity: FirebaseIdentityDep
+) -> PreferencesOut:
     """Preferências do usuário autenticado.
 
     Um usuário que nunca salvou nada recebe os valores padrão (200, não 404),
     para o app abrir sem tratamento especial na primeira visita. O e-mail é
     somente leitura e vem do token do Supabase, não do Firestore.
+
+    Esta é a primeira rota que o app chama, então é aqui que a conta espelho
+    no Firebase é criada (sem senha, com o mesmo id do Supabase) — o cadastro
+    continua sendo um só, feito no Supabase.
     """
+    try:
+        identity.ensure_user(claims.sub, claims.email)
+    except Exception:  # noqa: BLE001 - provisionar é acessório: nunca derruba a leitura
+        logger.exception("Falha ao provisionar o usuario %s no Firebase.", claims.sub)
     return _to_response(repo.get(claims.sub), claims.email)
 
 

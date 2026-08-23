@@ -36,6 +36,11 @@ def create_app() -> FastAPI:
             },
             {"name": "tickers", "description": "Snapshot 24h mais recente por ativo."},
             {
+                "name": "auth",
+                "description": "Ponte de identidade: emite custom token do Firebase "
+                "para o usuario autenticado no Supabase.",
+            },
+            {
                 "name": "preferences",
                 "description": "Preferencias do usuario autenticado (Firestore): dados "
                 "pessoais, notificacoes e acessibilidade.",
@@ -48,7 +53,7 @@ def create_app() -> FastAPI:
             origin.strip() for origin in settings.API_CORS_ORIGINS.split(",") if origin.strip()
         ],
         allow_credentials=True,
-        allow_methods=["GET", "PUT"],  # PUT: salvar preferencias
+        allow_methods=["GET", "PUT", "POST"],  # PUT: preferencias | POST: token Firebase
         allow_headers=["Authorization", "Content-Type"],
     )
     for router in routers:

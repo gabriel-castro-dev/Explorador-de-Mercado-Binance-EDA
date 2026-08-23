@@ -11,6 +11,7 @@ from app.repositories.klines_repository import KlinesRepository
 from app.repositories.preferences_repository import PreferencesRepository
 from app.repositories.symbols_repository import SymbolsRepository
 from app.repositories.tickers_repository import TickersRepository
+from app.services.firebase_identity import FirebaseIdentityService
 from config import get_settings
 from supabase import Client, ClientOptions, create_client
 
@@ -74,6 +75,11 @@ def get_tickers_repo(supabase: SupabaseDep) -> TickersRepository:
     return TickersRepository(supabase=supabase)
 
 
+def get_firebase_identity(_claims: CurrentClaimsDep) -> FirebaseIdentityService:
+    """Firebase identity operations, scoped by the caller's claims.sub."""
+    return FirebaseIdentityService()
+
+
 def get_preferences_repo(_claims: CurrentClaimsDep) -> PreferencesRepository:
     """Firestore-backed repository. Scoping is done by the caller's claims.sub.
 
@@ -88,3 +94,4 @@ FeaturesRepoDep = Annotated[FeaturesRepository, Depends(get_features_repo)]
 SymbolsRepoDep = Annotated[SymbolsRepository, Depends(get_symbols_repo)]
 TickersRepoDep = Annotated[TickersRepository, Depends(get_tickers_repo)]
 PreferencesRepoDep = Annotated[PreferencesRepository, Depends(get_preferences_repo)]
+FirebaseIdentityDep = Annotated[FirebaseIdentityService, Depends(get_firebase_identity)]
