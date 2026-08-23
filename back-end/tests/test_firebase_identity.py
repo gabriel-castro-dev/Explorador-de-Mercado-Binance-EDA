@@ -24,6 +24,9 @@ _ENV = {
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_test",
     "BINANCE_API_KEY": "x",
     "BINANCE_API_SECRET": "x",
+    # Sem credencial: nenhum teste pode alcancar o Firebase de verdade.
+    "FIREBASE_CREDENTIALS_PATH": "",
+    "FIREBASE_CREDENTIALS_JSON": "",
 }
 
 _UID = "8f8f0000-0000-0000-0000-000000000001"

@@ -24,6 +24,11 @@ _ENV = {
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_test",
     "BINANCE_API_KEY": "x",
     "BINANCE_API_SECRET": "x",
+    # Vazias de proposito: qualquer dependencia do Firebase que escape de um
+    # override falha aqui em vez de conectar de verdade (o CI nao tem .env,
+    # e a suite tem que se comportar igual na maquina de quem desenvolve).
+    "FIREBASE_CREDENTIALS_PATH": "",
+    "FIREBASE_CREDENTIALS_JSON": "",
 }
 
 _UID = "8f8f0000-0000-0000-0000-000000000001"
@@ -183,10 +188,13 @@ class PreferencesApiTests(unittest.TestCase):
         self.app.dependency_overrides.clear()
 
     def _client(self, repo):
-        from app.controllers.deps import get_claims, get_preferences_repo
+        from app.controllers.deps import get_claims, get_firebase_identity, get_preferences_repo
 
         self.app.dependency_overrides[get_claims] = lambda: _CLAIMS
         self.app.dependency_overrides[get_preferences_repo] = lambda: repo
+        # GET /preferences provisiona a conta espelho: sem este override o
+        # teste construiria o servico real e sairia para a rede.
+        self.app.dependency_overrides[get_firebase_identity] = lambda: MagicMock()
         return TestClient(self.app)
 
     def test_requires_a_token(self):
