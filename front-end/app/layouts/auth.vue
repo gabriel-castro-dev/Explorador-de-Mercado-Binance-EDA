@@ -5,12 +5,12 @@
       class="mb-6 flex items-center gap-2.5 rounded-md"
       aria-label="crypto forecasting — início"
     >
-      <AppLogo />
+      <AppLogo :size="34" />
       <span class="text-[15px] font-semibold text-highlighted">crypto forecasting</span>
     </NuxtLink>
 
     <UCard
-      class="w-full max-w-[400px] rounded-lg"
+      class="w-full max-w-[400px]"
       :ui="{ body: 'p-7 sm:p-7' }"
     >
       <slot />
