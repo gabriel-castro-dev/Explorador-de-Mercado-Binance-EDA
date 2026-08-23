@@ -41,11 +41,16 @@ class _EmailAlreadyExistsError(Exception):
     pass
 
 
+class _UidAlreadyExistsError(Exception):
+    pass
+
+
 def _fake_auth(existing=True):
     """Firebase auth double carrying the SDK's exception types."""
     auth = MagicMock()
     auth.UserNotFoundError = _UserNotFoundError
     auth.EmailAlreadyExistsError = _EmailAlreadyExistsError
+    auth.UidAlreadyExistsError = _UidAlreadyExistsError
     if existing:
         auth.get_user.return_value = MagicMock(uid=_UID)
     else:
@@ -68,6 +73,13 @@ class FirebaseIdentityServiceTests(unittest.TestCase):
         auth.create_user.assert_called_once_with(uid=_UID, email="user@example.com")
         # Supabase owns credentials: no password may reach Firebase.
         self.assertNotIn("password", auth.create_user.call_args.kwargs)
+
+    def test_concurrent_creation_of_the_same_uid_is_not_an_error(self):
+        """Duas primeiras requisicoes em paralelo: a perdedora nao pode dar 500."""
+        auth = _fake_auth(existing=False)
+        auth.create_user.side_effect = _UidAlreadyExistsError("uid taken")
+        created = FirebaseIdentityService(auth_module=auth).ensure_user(_UID, "user@example.com")
+        self.assertFalse(created)
 
     def test_email_owned_by_another_uid_does_not_raise(self):
         auth = _fake_auth(existing=False)
