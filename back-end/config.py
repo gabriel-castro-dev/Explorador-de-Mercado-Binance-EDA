@@ -53,6 +53,15 @@ class Settings(BaseSettings):
     FIREBASE_CREDENTIALS_JSON: Optional[str] = None
     FIRESTORE_COLLECTION: str = "user_preferences"
 
+    # --- OpenRouter (leitura do dia gerada por LLM; a chave fica SO no servidor) ---
+    # Slugs verificados em 2026-08-23 via GET /api/v1/models: nao existe variante
+    # ":free" do deepseek-v4-flash (o modelo e pago, ~US$ 0,05/M tokens de entrada);
+    # o fallback Nemotron 3 Ultra tem variante ":free" real.
+    OPENROUTER_API_KEY: Optional[str] = None
+    OPENROUTER_MODEL: str = "deepseek/deepseek-v4-flash"
+    OPENROUTER_FALLBACK_MODEL: Optional[str] = "nvidia/nemotron-3-ultra-550b-a55b:free"
+    DAILY_READINGS_COLLECTION: str = "daily_readings"
+
     @field_validator(
         "BINANCE_API_KEY",
         "BINANCE_API_SECRET",
@@ -61,6 +70,7 @@ class Settings(BaseSettings):
         "SUPABASE_JWT_SECRET",
         "FIREBASE_CREDENTIALS_PATH",
         "FIREBASE_CREDENTIALS_JSON",
+        "OPENROUTER_API_KEY",
     )
     @classmethod
     def strip_values(cls, v: str) -> str:

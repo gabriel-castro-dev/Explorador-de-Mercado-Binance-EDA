@@ -51,6 +51,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/insights/daily-reading": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Daily Reading
+         * @description Leitura do dia gerada pelo modelo de linguagem (cache global por dia UTC).
+         *
+         *     O texto resume apenas números calculados no servidor (snapshot 24h,
+         *     volumes, ATR relativo) — nunca dados inventados. A primeira requisição
+         *     autenticada do dia gera e grava; as demais leem o cache. Sem cache e sem
+         *     geração possível, responde 503 e o front mostra o estado vazio.
+         */
+        get: operations["get_daily_reading_api_v1_insights_daily_reading_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/klines/{timeframe}": {
         parameters: {
             query?: never;
@@ -178,6 +203,32 @@ export interface components {
              * @default false
              */
             hollow_up_candles: boolean;
+        };
+        /**
+         * DailyReadingOut
+         * @description One generated market reading, cached globally per UTC day.
+         *
+         *     Attributes:
+         *         date: UTC day the reading refers to (``YYYY-MM-DD``).
+         *         generated_at: When the text was generated.
+         *         model: Model slug that actually produced the text (post-fallback).
+         *         text: The reading itself, in pt-BR, grounded on the day's numbers.
+         *         disclaimer: Fixed sentence every forecast surface must show.
+         */
+        DailyReadingOut: {
+            /** Date */
+            date: string;
+            /** Disclaimer */
+            disclaimer: string;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Model */
+            model: string;
+            /** Text */
+            text: string;
         };
         /**
          * FeatureRowOut
@@ -519,6 +570,33 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    get_daily_reading_api_v1_insights_daily_reading_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyReadingOut"];
+                };
+            };
+            /** @description Leitura indisponível. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

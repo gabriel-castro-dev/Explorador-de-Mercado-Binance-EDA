@@ -45,6 +45,11 @@ def create_app() -> FastAPI:
                 "description": "Preferencias do usuario autenticado (Firestore): dados "
                 "pessoais, notificacoes e acessibilidade.",
             },
+            {
+                "name": "insights",
+                "description": "Textos gerados por LLM (OpenRouter) sobre os numeros do "
+                "dia. Cache global por dia UTC; nunca inventa dados.",
+            },
         ],
     )
     application.add_middleware(
