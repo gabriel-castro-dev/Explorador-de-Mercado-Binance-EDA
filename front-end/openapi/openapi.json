@@ -486,7 +486,7 @@
           "hollow_up_candles": {
             "type": "boolean",
             "title": "Hollow Up Candles",
-            "default": false
+            "default": true
           }
         },
         "additionalProperties": false,

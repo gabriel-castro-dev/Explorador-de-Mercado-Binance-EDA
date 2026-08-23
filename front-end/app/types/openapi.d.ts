@@ -200,7 +200,7 @@ export interface components {
         ChartSettings: {
             /**
              * Hollow Up Candles
-             * @default false
+             * @default true
              */
             hollow_up_candles: boolean;
         };
