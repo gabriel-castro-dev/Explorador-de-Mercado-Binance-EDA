@@ -334,7 +334,7 @@
           "preferences"
         ],
         "summary": "Get Preferences",
-        "description": "Preferências do usuário autenticado.\n\nUm usuário que nunca salvou nada recebe os valores padrão (200, não 404),\npara o app abrir sem tratamento especial na primeira visita. O e-mail é\nsomente leitura e vem do token do Supabase, não do Firestore.",
+        "description": "Preferências do usuário autenticado.\n\nUm usuário que nunca salvou nada recebe os valores padrão (200, não 404),\npara o app abrir sem tratamento especial na primeira visita. O e-mail é\nsomente leitura e vem do token do Supabase, não do Firestore.\n\nEsta é a primeira rota que o app chama, então é aqui que a conta espelho\nno Firebase é criada (sem senha, com o mesmo id do Supabase) — o cadastro\ncontinua sendo um só, feito no Supabase.",
         "operationId": "get_preferences_api_v1_preferences_get",
         "responses": {
           "200": {
@@ -388,6 +388,33 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/firebase-token": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Issue Firebase Token",
+        "description": "Emite um custom token do Firebase para o usuário autenticado.\n\nO usuário é criado no Firebase (sem senha) caso ainda não exista, com o\nmesmo id do Supabase. Troque o token por um `idToken` chamando\n`accounts:signInWithCustomToken?key=<web api key>`.",
+        "operationId": "issue_firebase_token_api_v1_auth_firebase_token_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirebaseTokenOut"
                 }
               }
             }
@@ -698,6 +725,25 @@
         ],
         "title": "FeatureRowOut",
         "description": "One indicator row from features_{15m,1h,24h}.\n\nField names mirror the output columns produced by\napp/feature_engineering/config/features.yml (macd, macd_histogram\nand bb_width are Postgres GENERATED columns). Indicators are\nnullable: warm-up windows legitimately produce NULLs."
+      },
+      "FirebaseTokenOut": {
+        "properties": {
+          "custom_token": {
+            "type": "string",
+            "title": "Custom Token"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In",
+            "default": 3600
+          }
+        },
+        "type": "object",
+        "required": [
+          "custom_token"
+        ],
+        "title": "FirebaseTokenOut",
+        "description": "A short-lived Firebase custom token for the signed-in user.\n\nExchange it for an ID token at the Identity Toolkit:\n``POST accounts:signInWithCustomToken?key=<web api key>``."
       },
       "HTTPValidationError": {
         "properties": {
@@ -1240,6 +1286,10 @@
     {
       "name": "tickers",
       "description": "Snapshot 24h mais recente por ativo."
+    },
+    {
+      "name": "auth",
+      "description": "Ponte de identidade: emite custom token do Firebase para o usuario autenticado no Supabase."
     },
     {
       "name": "preferences",

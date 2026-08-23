@@ -16,7 +16,8 @@ ENV/
 *.secret
 *.pem
 *.act.secrets
-
+*mcp*
+*.claude
 # ============================================================================
 # LOGS E CACHE
 # ============================================================================
@@ -56,7 +57,7 @@ back-end/**/wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-
+#
 # ============================================================================
 # IDEs E EDITORES
 # ============================================================================
@@ -77,6 +78,8 @@ Thumbs.db
 .dmypy.json
 dmypy.json
 back-end/**/*.json
+# Config declarativa do Firebase (nao e segredo; o deploy das regras depende dela)
+!back-end/firebase.json
 *.bak
 *.tmp
 
