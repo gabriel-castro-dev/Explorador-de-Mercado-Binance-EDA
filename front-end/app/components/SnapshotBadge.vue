@@ -19,7 +19,7 @@ const tooltip = 'Candles e indicadores atualizam 1x/dia (~00:05 UTC); resumo 24h
     <span
       tabindex="0"
       class="num inline-flex h-8 max-w-full items-center gap-2 rounded-md border px-2.5 text-[11px]"
-      :class="props.state === 'stale' ? 'border-(--cf-warning)/50 bg-warn text-warn' : 'border-default bg-elevated text-muted'"
+      :class="props.state === 'stale' ? 'border-(--cf-warning)/50 bg-warn text-warn' : 'border-default bg-solid-surface text-muted'"
       aria-live="polite"
     >
       <UIcon
@@ -31,7 +31,7 @@ const tooltip = 'Candles e indicadores atualizam 1x/dia (~00:05 UTC); resumo 24h
       <span
         v-else
         class="inline-block size-1.5 shrink-0 rounded-full"
-        :class="props.state === 'fresh' ? 'bg-(--cf-up)' : 'bg-(--ui-text-dimmed)'"
+        :class="props.state === 'fresh' ? 'bg-(--cf-cyan)' : 'bg-(--ui-text-dimmed)'"
         aria-hidden="true"
       />
       <span class="eyebrow shrink-0">{{ props.prefix }}</span>

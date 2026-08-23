@@ -2,7 +2,7 @@ import type { Timeframe } from '~/types/api'
 import { DEFAULT_TIMEFRAME, isTimeframe } from '~/utils/constants'
 
 /**
- * Estado do dashboard na URL (`/?symbol=BTCUSDT&tf=1h`): links compartilháveis e restauráveis
+ * Estado do dashboard na URL (`/graficos?symbol=BTCUSDT&tf=1h`): links compartilháveis e restauráveis
  * após login expirado. `tf` inválido é corrigido silenciosamente para o padrão (ux-spec §7).
  */
 export function useDashboardQuery() {

@@ -76,7 +76,7 @@ function toneClass(v: number | null | undefined) {
           :key="t.symbol"
         >
           <NuxtLink
-            :to="{ path: '/', query: { symbol: t.symbol, tf: props.tf } }"
+            :to="{ path: '/graficos', query: { symbol: t.symbol, tf: props.tf } }"
             class="flex h-14 items-center justify-between gap-3 px-4"
             :class="t.symbol === props.selectedSymbol ? 'bg-primary-soft' : ''"
           >

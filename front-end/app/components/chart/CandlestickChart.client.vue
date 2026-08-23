@@ -24,8 +24,8 @@ import {
 } from 'lightweight-charts'
 import type { FeatureKey, FeatureRow, Kline, Timeframe } from '~/types/api'
 import type { IndicatorPrefs } from '~/composables/useIndicatorPrefs'
-import { CANDLE_COLORS, INDICATOR_BY_KEY, INDICATOR_DEFS, MACD_SIGNAL_COLOR, TIMEFRAME_META, type LineStyleName } from '~/utils/constants'
-import { featureToHistogram, featureToLine, klinesToCandles, klinesToVolume, lastValue, valueAt, warmupInfo } from '~/utils/chart-mapping'
+import { CANDLE_COLORS, INDICATOR_BY_KEY, INDICATOR_DEFS, MACD_SIGNAL_COLOR, SCENARIO_COLORS, TIMEFRAME_META, type LineStyleName } from '~/utils/constants'
+import { featureToHistogram, featureToLine, klinesToCandles, klinesToVolume, lastValue, valueAt, warmupInfo, type ScenarioSet } from '~/utils/chart-mapping'
 import { EM_DASH, formatNumber, formatPrice, formatUtcShort, priceDecimals } from '~/utils/format'
 
 const props = defineProps<{
@@ -35,6 +35,9 @@ const props = defineProps<{
   features: readonly FeatureRow[]
   prefs: IndicatorPrefs
   hollowUp?: boolean
+  /** Cenários do modelo depois da linha de corte (null até o marco 3 — nunca fabricados). */
+  scenarios?: ScenarioSet | null
+  showScenarios?: boolean
   /** Sem linha de corte/área reservada (ex.: telas muito estreitas). */
   compact?: boolean
 }>()
@@ -52,6 +55,7 @@ let rsiBand: ISeriesApi<'Baseline'> | null = null
 let macdLine: ISeriesApi<'Line'> | null = null
 let macdSignal: ISeriesApi<'Line'> | null = null
 let macdHist: ISeriesApi<'Histogram'> | null = null
+let scenarioSeries: ISeriesApi<'Line'>[] = []
 let edgeNotified = false
 
 const candles = computed(() => klinesToCandles(props.klines))
@@ -137,6 +141,8 @@ function clearSeries() {
   if (!chart) return
   for (const s of overlaySeries.values()) chart.removeSeries(s)
   overlaySeries.clear()
+  for (const s of scenarioSeries) chart.removeSeries(s)
+  scenarioSeries = []
   for (const s of [rsiSeries, rsiBand, macdLine, macdSignal, macdHist, volumeSeries, candleSeries]) {
     if (s) chart.removeSeries(s as ISeriesApi<'Line'>)
   }
@@ -246,8 +252,38 @@ function buildSeries() {
     paneIndex++
   }
 
+  buildScenarioSeries()
   applyPaneSizes()
   updateCutLine()
+}
+
+/** Cenários pós-corte: gelo/ciano/vermelho tracejadas (só com dados reais do modelo). */
+const hasScenarios = computed(() =>
+  Boolean(props.showScenarios && props.scenarios
+    && (props.scenarios.best.length || props.scenarios.expected.length || props.scenarios.worst.length)))
+
+function buildScenarioSeries() {
+  if (!chart || !hasScenarios.value || !props.scenarios) return
+  const defs = [
+    { data: props.scenarios.best, color: SCENARIO_COLORS.best, title: 'melhor' },
+    { data: props.scenarios.expected, color: SCENARIO_COLORS.expected, title: 'esperada' },
+    { data: props.scenarios.worst, color: SCENARIO_COLORS.worst, title: 'pior' },
+  ]
+  for (const def of defs) {
+    if (!def.data.length) continue
+    const s = chart.addSeries(LineSeries, {
+      color: def.color,
+      lineWidth: 1.5 as LineWidth,
+      lineStyle: LineStyle.Dashed,
+      priceLineVisible: false,
+      lastValueVisible: true,
+      title: def.title,
+      crosshairMarkerVisible: false,
+      priceFormat: { type: 'custom', formatter: (v: number) => formatPrice(v), minMove: 1 / 10 ** precision.value },
+    }, 0)
+    s.setData(def.data)
+    scenarioSeries.push(s)
+  }
 }
 
 function applyPaneSizes() {
@@ -420,7 +456,7 @@ watch(() => [props.symbol, props.tf, props.klines, props.features], () => {
   scheduleMeasure()
 }, { deep: false })
 
-watch(() => [props.prefs, props.hollowUp], () => {
+watch(() => [props.prefs, props.hollowUp, props.showScenarios, props.scenarios], () => {
   rebuild()
   refreshLegend(null)
   scheduleMeasure()
@@ -468,6 +504,7 @@ defineExpose({ fitContent: () => chart?.timeScale().fitContent() })
         style="background: repeating-linear-gradient(135deg, transparent 0 6px, var(--cf-forecast-fill) 6px 7px)"
       />
       <span
+        v-if="!hasScenarios"
         class="num text-ai absolute right-2 whitespace-nowrap text-[11px]"
         :style="{ top: `${(paneTops[1] ?? (container?.clientHeight ?? 0) - 30) - 26}px`, textShadow: '0 0 4px var(--ui-bg-elevated)' }"
       >previsão · em breve</span>

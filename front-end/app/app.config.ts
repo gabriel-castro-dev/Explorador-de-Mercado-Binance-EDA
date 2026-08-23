@@ -1,6 +1,8 @@
 // Tema Dark-Tech (Design.md v2): navy quase-preto + vidro; primária "electric" #3e86f7
 // (iluminação seletiva, ≤ 20 % da composição); ciano #5fc4ff EXCLUSIVO de conteúdo de IA;
 // alta/baixa só via tokens --cf-up/--cf-down (gelo × vermelho), nunca success/error do Nuxt UI.
+// Camadas flutuantes (modal/drawer/menu) ficam sólidas via tokens --ui-bg* — não sobrescrever
+// os slots delas aqui (as strings substituem classes de posicionamento do tema).
 export default defineAppConfig({
   ui: {
     colors: {
@@ -11,30 +13,17 @@ export default defineAppConfig({
       loading: 'i-lucide-loader-circle',
     },
     card: {
-      // Todo UCard é um cartão de vidro (receita única em main.css).
+      // Todo UCard é um cartão de vidro (receita única em main.css); a variante
+      // outline é neutralizada para o bg-default/ring não competir com o vidro.
       slots: {
-        root: 'glass divide-y divide-[var(--cf-border-muted)] ring-0 rounded-[12px]',
+        root: 'glass overflow-hidden',
       },
-    },
-    modal: {
-      // Camadas flutuantes são sólidas (vidro atrás de vidro embaralha a leitura).
-      slots: {
-        content: 'bg-solid-surface ring ring-[var(--cf-border)] rounded-[12px]',
-      },
-    },
-    drawer: {
-      slots: {
-        content: 'bg-solid-surface ring ring-[var(--cf-border)]',
-      },
-    },
-    dropdownMenu: {
-      slots: {
-        content: 'bg-solid-surface ring ring-[var(--cf-border)]',
-      },
-    },
-    tooltip: {
-      slots: {
-        content: 'bg-solid-surface ring ring-[var(--cf-border)]',
+      variants: {
+        variant: {
+          outline: {
+            root: 'divide-y divide-[var(--cf-border-muted)]',
+          },
+        },
       },
     },
   },

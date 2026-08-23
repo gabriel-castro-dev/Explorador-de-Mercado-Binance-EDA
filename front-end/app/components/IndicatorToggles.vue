@@ -11,9 +11,11 @@ const props = withDefaults(defineProps<{
   /** Drawer mobile: itens com switch de 44 px. */
   variant?: 'aside' | 'drawer'
   highlightKey?: IndicatorKey | null
-}>(), { variant: 'aside', featuresStatus: 'idle', highlightKey: null })
+  /** Grupo "Modelo": cenários melhor/esperado/pior (undefined = grupo oculto). */
+  scenario?: boolean
+}>(), { variant: 'aside', featuresStatus: 'idle', highlightKey: null, scenario: undefined })
 
-const emit = defineEmits<{ (e: 'retry-features'): void }>()
+const emit = defineEmits<{ (e: 'retry-features'): void, (e: 'toggle-scenario', value: boolean): void }>()
 
 const toast = useToast()
 
@@ -128,6 +130,41 @@ function onRestore() {
                 v-if="warmupFor(def.key)"
                 class="num text-[11px] text-dimmed"
               >{{ warmupFor(def.key) }}</span>
+            </label>
+          </li>
+        </ul>
+      </fieldset>
+
+      <!-- Grupo Modelo: o ciano marca o que vem da IA (Design.md §5) -->
+      <fieldset
+        v-if="props.scenario !== undefined"
+        class="mb-4"
+      >
+        <legend class="eyebrow mb-1.5 text-dimmed">
+          Modelo
+        </legend>
+        <ul class="space-y-0.5">
+          <li class="rounded-md">
+            <label
+              class="flex cursor-pointer items-center gap-2.5 rounded-md px-1.5 py-1.5 hover:bg-muted"
+              :class="props.variant === 'drawer' ? 'min-h-11' : 'min-h-8'"
+              title="Cenários de melhor caso, esperado e pior caso depois da linha de corte"
+            >
+              <USwitch
+                v-if="props.variant === 'drawer'"
+                :model-value="props.scenario"
+                size="md"
+                aria-label="Cenários (melhor/esperado/pior)"
+                @update:model-value="(v: boolean) => emit('toggle-scenario', v)"
+              />
+              <UCheckbox
+                v-else
+                :model-value="props.scenario"
+                aria-label="Cenários (melhor/esperado/pior)"
+                @update:model-value="(v: boolean | 'indeterminate') => emit('toggle-scenario', v === true)"
+              />
+              <span class="flex-1 text-[13px] text-default">Cenários (melhor/esperado/pior)</span>
+              <span class="ai-chip text-[10px]">IA · v0 · em validação</span>
             </label>
           </li>
         </ul>
