@@ -59,6 +59,12 @@ class FirebaseIdentityService:
             self.auth.create_user(uid=uid, email=email)
             logger.info("Usuario Firebase provisionado para %s.", uid)
             return True
+        except self.auth.UidAlreadyExistsError:
+            # Outra requisicao concorrente criou primeiro (o app costuma abrir
+            # chamando /preferences e /auth/firebase-token juntos). O estado
+            # desejado ja vale, entao isto e sucesso, nao erro.
+            logger.info("Usuario %s criado por uma requisicao concorrente.", uid)
+            return False
         except self.auth.EmailAlreadyExistsError:
             # O e-mail pertence a outro uid (ex.: conta criada a mao no console).
             # Nao ha o que reconciliar com seguranca aqui: registra e segue.
