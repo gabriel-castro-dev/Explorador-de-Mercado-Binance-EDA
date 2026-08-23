@@ -97,4 +97,36 @@ describe('createApiClient', () => {
     expect(err.kind).toBe('network')
     expect(err.status).toBeNull()
   })
+
+  it('PUT sends body with Bearer token and returns the saved document', async () => {
+    const saved = { display_name: 'Gabriel', email: 'g@x.dev', notifications: { enabled: true, channel: 'email', topics: {} }, chart: { hollow_up_candles: true } }
+    const { fetchImpl, calls } = fakeFetch([{ status: 200, body: saved }])
+    const api = createApiClient('http://api', session(), fetchImpl)
+    const data = await api.put('/api/v1/preferences', { body: { display_name: 'Gabriel' } })
+    expect(data).toEqual(saved)
+    expect(calls[0]?.auth).toBe('Bearer tok-1')
+    expect(calls[0]?.url).toBe('http://api/api/v1/preferences')
+  })
+
+  it('PUT 401 → refresh → retry preserves the body', async () => {
+    const { fetchImpl, calls } = fakeFetch([
+      { status: 401, body: { detail: 'Invalid or expired token' } },
+      { status: 200, body: { display_name: 'G' } },
+    ])
+    const s = session({ refreshed: true })
+    const data = await createApiClient('http://api', s, fetchImpl).put('/api/v1/preferences', { body: { display_name: 'G' } })
+    expect(data).toEqual({ display_name: 'G' })
+    expect(calls.map(c => c.auth)).toEqual(['Bearer tok-1', 'Bearer tok-2'])
+    expect(s.onExpired).not.toHaveBeenCalled()
+  })
+
+  it('PUT 422 → ApiError(validation) with PUT label', async () => {
+    const detail = [{ loc: ['body', 'phone'], msg: 'String should match pattern', type: 'string_pattern_mismatch' }]
+    const { fetchImpl } = fakeFetch([{ status: 422, body: { detail } }])
+    const err = await createApiClient('http://api', session(), fetchImpl)
+      .put('/api/v1/preferences', { body: { phone: 'x' } })
+      .catch(e => e)
+    expect(err.kind).toBe('validation')
+    expect(err.request).toBe('PUT /preferences')
+  })
 })

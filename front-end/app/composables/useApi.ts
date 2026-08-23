@@ -1,15 +1,20 @@
 import createClient from 'openapi-fetch'
-import type { Client, MaybeOptionalInit, MethodResponse } from 'openapi-fetch'
+import type { Client, ClientPathsWithMethod, MaybeOptionalInit, MethodResponse } from 'openapi-fetch'
 import type { paths } from '~/types/openapi'
 import { networkError, normalizeApiError, type ApiError } from '~/utils/api-errors'
 
-type ApiPaths = { [P in keyof paths]: paths[P] extends { get: unknown } ? P : never }[keyof paths]
-type GetInit<P extends ApiPaths> = MaybeOptionalInit<paths[P], 'get'>
-type GetData<P extends ApiPaths> = MethodResponse<Client<paths>, 'get', P>
+type HttpMethod = 'get' | 'put' | 'post'
+type PathsWith<M extends HttpMethod> = ClientPathsWithMethod<Client<paths>, M>
+type Init<M extends HttpMethod, P extends PathsWith<M>> = MaybeOptionalInit<paths[P], M>
+type Data<M extends HttpMethod, P extends PathsWith<M>> = MethodResponse<Client<paths>, M, P>
 
 export interface ApiClient {
   /** GET tipado: lança `ApiError` em qualquer não-2xx / falha de rede. */
-  get: <P extends ApiPaths>(path: P, init?: GetInit<P>) => Promise<GetData<P>>
+  get: <P extends PathsWith<'get'>>(path: P, init?: Init<'get', P>) => Promise<Data<'get', P>>
+  /** PUT tipado: mesma política de auth/erros do GET. */
+  put: <P extends PathsWith<'put'>>(path: P, init: Init<'put', P>) => Promise<Data<'put', P>>
+  /** POST tipado: mesma política de auth/erros do GET. */
+  post: <P extends PathsWith<'post'>>(path: P, init?: Init<'post', P>) => Promise<Data<'post', P>>
 }
 
 interface SessionProvider {
@@ -20,64 +25,69 @@ interface SessionProvider {
   onExpired: () => Promise<void>
 }
 
-function describe(path: string, init?: { params?: { path?: Record<string, unknown> } }): string {
+function describe(method: HttpMethod, path: string, init?: { params?: { path?: Record<string, unknown> } }): string {
   let p = path.replace('/api/v1', '')
   for (const [k, v] of Object.entries(init?.params?.path ?? {})) p = p.replace(`{${k}}`, String(v))
-  return `GET ${p}`
+  return `${method.toUpperCase()} ${p}`
 }
 
 /** Núcleo sem Nuxt (testável): cliente + política de auth/erros. */
 export function createApiClient(baseUrl: string, session: SessionProvider, fetchImpl?: typeof fetch): ApiClient {
   const raw = createClient<paths>({ baseUrl, fetch: fetchImpl })
 
-  async function request<P extends ApiPaths>(path: P, init: GetInit<P> | undefined, token: string | null) {
+  async function request(method: HttpMethod, path: string, init: object | undefined, token: string | null) {
     const headers: Record<string, string> = {}
     if (token) headers.Authorization = `Bearer ${token}`
-    const merged = { ...((init ?? {}) as object), headers }
-    return raw.GET(path as never, merged as never) as Promise<{ data?: unknown, error?: unknown, response: Response }>
+    const merged = { ...(init ?? {}), headers }
+    const fn = method === 'get' ? raw.GET : method === 'put' ? raw.PUT : raw.POST
+    return fn(path as never, merged as never) as Promise<{ data?: unknown, error?: unknown, response: Response }>
   }
 
   let expiring: Promise<void> | null = null
 
+  async function call(method: HttpMethod, path: string, init: object | undefined): Promise<unknown> {
+    const label = describe(method, path, init as never)
+    const isPublic = path === '/health'
+    let token = isPublic ? null : await session.getAccessToken()
+
+    let res: Awaited<ReturnType<typeof request>>
+    try {
+      res = await request(method, path, init, token)
+    } catch (cause) {
+      throw networkError(label, cause)
+    }
+
+    if (res.response.status === 401 && !isPublic) {
+      const refreshed = await session.refresh()
+      if (refreshed) {
+        token = await session.getAccessToken()
+        try {
+          res = await request(method, path, init, token)
+        } catch (cause) {
+          throw networkError(label, cause)
+        }
+      }
+      if (res.response.status === 401) {
+        // Uma única expiração por vez, mesmo com N requisições em paralelo.
+        expiring ??= session.onExpired().finally(() => {
+          expiring = null
+        })
+        await expiring
+        throw normalizeApiError(401, res.error, label)
+      }
+    }
+
+    if (!res.response.ok) {
+      const body = res.error ?? (await res.response.text().catch(() => undefined))
+      throw normalizeApiError(res.response.status, body, label)
+    }
+    return res.data
+  }
+
   return {
-    async get(path, init) {
-      const label = describe(path, init as never)
-      const isPublic = path === '/health'
-      let token = isPublic ? null : await session.getAccessToken()
-
-      let res: Awaited<ReturnType<typeof request>>
-      try {
-        res = await request(path, init, token)
-      } catch (cause) {
-        throw networkError(label, cause)
-      }
-
-      if (res.response.status === 401 && !isPublic) {
-        const refreshed = await session.refresh()
-        if (refreshed) {
-          token = await session.getAccessToken()
-          try {
-            res = await request(path, init, token)
-          } catch (cause) {
-            throw networkError(label, cause)
-          }
-        }
-        if (res.response.status === 401) {
-          // Uma única expiração por vez, mesmo com N requisições em paralelo.
-          expiring ??= session.onExpired().finally(() => {
-            expiring = null
-          })
-          await expiring
-          throw normalizeApiError(401, res.error, label)
-        }
-      }
-
-      if (!res.response.ok) {
-        const body = res.error ?? (await res.response.text().catch(() => undefined))
-        throw normalizeApiError(res.response.status, body, label)
-      }
-      return res.data as never
-    },
+    get: (path, init) => call('get', path, init as object | undefined) as never,
+    put: (path, init) => call('put', path, init as object | undefined) as never,
+    post: (path, init) => call('post', path, init as object | undefined) as never,
   }
 }
 
