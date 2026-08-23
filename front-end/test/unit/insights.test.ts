@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { volatilityTop, volumeTop } from '../../app/utils/insights'
+import { splitReading, volatilityTop, volumeTop } from '../../app/utils/insights'
 import type { FeatureRow, Kline, Ticker24h } from '../../app/types/api'
 
 function feature(atr: number | null): FeatureRow {
@@ -83,5 +83,48 @@ describe('volumeTop', () => {
       { ticker: ticker('CCC', 300), dailyKlines: [] },
     ])
     expect(rows.map(r => r.symbol)).toEqual(['CCC', 'AAA'])
+  })
+})
+
+describe('splitReading', () => {
+  it('separa a primeira frase como manchete', () => {
+    const parts = splitReading('Hoje, o mercado abriu comprador. 14 dos 20 ativos subiram nas últimas 24 h.')
+    expect(parts).toEqual({
+      headline: 'Hoje, o mercado abriu comprador.',
+      body: '14 dos 20 ativos subiram nas últimas 24 h.',
+    })
+  })
+
+  it('texto de uma frase só vira manchete sem corpo', () => {
+    expect(splitReading('O mercado abriu comprador.')).toEqual({
+      headline: 'O mercado abriu comprador.',
+      body: '',
+    })
+  })
+
+  it('manchete longa demais desce inteira para o corpo', () => {
+    const long = `${'a'.repeat(120)}. Segunda frase.`
+    const parts = splitReading(long)
+    expect(parts?.headline).toBe('')
+    expect(parts?.body).toContain('Segunda frase.')
+  })
+
+  it('devolve null sem texto', () => {
+    expect(splitReading(null)).toBeNull()
+    expect(splitReading('   ')).toBeNull()
+  })
+
+  it('normaliza espaços e quebras de linha', () => {
+    expect(splitReading('Primeira.\n\n   Segunda   frase.')).toEqual({
+      headline: 'Primeira.',
+      body: 'Segunda frase.',
+    })
+  })
+})
+
+describe('splitReading · tipografia', () => {
+  it('mantém numeral e símbolo de porcentagem na mesma linha', () => {
+    const parts = splitReading('Alta média de 1,4 % nos 20 ativos. Segunda frase.')
+    expect(parts?.headline).toBe('Alta média de 1,4\u00A0% nos 20 ativos.')
   })
 })
