@@ -1,49 +1,53 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
 
-/* Google Sans + Google Sans Code — self-host (Design.md §3), variáveis 400–700. */
+/* ===========================================================================
+   CRYPTO FORECASTING — Design v3 "Observatório Vivo"
+   Fonte normativa: docs/design/Design.md. Dark-only, sem toggle de tema.
+   =========================================================================== */
+
+/* --- Tipografia: Geist / Geist Mono, self-host WOFF2 variável (Design.md §3.1) --- */
 @font-face {
-  font-family: 'Google Sans';
+  font-family: 'Geist';
   font-style: normal;
-  font-weight: 400 700;
+  font-weight: 100 900;
   font-display: swap;
-  src: url('~/assets/fonts/google-sans-latin.woff2') format('woff2');
+  src: url('~/assets/fonts/geist-latin.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 @font-face {
-  font-family: 'Google Sans';
+  font-family: 'Geist';
   font-style: normal;
-  font-weight: 400 700;
+  font-weight: 100 900;
   font-display: swap;
-  src: url('~/assets/fonts/google-sans-latin-ext.woff2') format('woff2');
+  src: url('~/assets/fonts/geist-latin-ext.woff2') format('woff2');
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
 @font-face {
-  font-family: 'Google Sans Code';
+  font-family: 'Geist Mono';
   font-style: normal;
-  font-weight: 400 700;
+  font-weight: 100 900;
   font-display: swap;
-  src: url('~/assets/fonts/google-sans-code-latin.woff2') format('woff2');
+  src: url('~/assets/fonts/geist-mono-latin.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 @font-face {
-  font-family: 'Google Sans Code';
+  font-family: 'Geist Mono';
   font-style: normal;
-  font-weight: 400 700;
+  font-weight: 100 900;
   font-display: swap;
-  src: url('~/assets/fonts/google-sans-code-latin-ext.woff2') format('woff2');
+  src: url('~/assets/fonts/geist-mono-latin-ext.woff2') format('woff2');
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
-/* Tokens de design — Design.md v2 "Dark-Tech" (dark-only). */
 @theme static {
-  --font-sans: 'Google Sans', 'Segoe UI', system-ui, sans-serif;
-  --font-mono: 'Google Sans Code', ui-monospace, Consolas, monospace;
+  --font-sans: 'Geist', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, Consolas, monospace;
 
-  /* Azul elétrico #3e86f7 — paleta primária (uso seletivo ≤ 20 % da composição). */
+  /* Azul elétrico #3E86F7 — ação, foco, navegação ativa e link (Design.md §4.2). */
   --color-electric-50: #eef5ff;
   --color-electric-100: #d9e8fe;
   --color-electric-200: #bcd7fd;
@@ -58,72 +62,94 @@
 }
 
 :root {
-  --ui-radius: 0.5rem; /* 8px controles; cards 12px (glass); chips 999px. Nada além disso. */
-  --ui-header-height: 3.625rem; /* 58px */
+  /* --- Fundos e texto (Design.md §4.1) --- */
+  --cf-bg-0: #050811;
+  --cf-bg-1: #081426;
+  --cf-bg-2: #0a1721;
+  --cf-surface: rgba(11, 20, 34, 0.78);
+  --cf-surface-solid: #0b1422;
 
-  /* Chrome — navy quase-preto (nunca #000 puro) */
-  --ui-bg: #060b16;
-  --ui-bg-elevated: #0c1626;
-  --ui-bg-muted: #0a1120;
-  --ui-bg-accented: #13223a;
-  --ui-border: rgba(216, 230, 245, 0.14);
-  --ui-border-muted: rgba(216, 230, 245, 0.08);
-  --ui-border-accented: rgba(216, 230, 245, 0.26);
-  --ui-text-highlighted: #f6f9fd;
-  --ui-text: #dde6f2;
-  --ui-text-muted: #9fb0c7;
-  --ui-text-dimmed: #66788f;
-  --ui-text-inverted: #04070f; /* texto sobre o botão elétrico (contraste 7.4:1) */
-  --ui-primary: var(--ui-color-primary-500);
+  --cf-text-hi: #f3f7fc;
+  --cf-text: #dce5f1;
+  --cf-text-muted: #9eacc0;
+  --cf-text-dim: #66788f;
 
-  /* Superfícies Dark-Tech */
-  --cf-bg: #060b16;
-  --cf-bg-deep: #04070f;
-  --cf-solid: #0c1626; /* canvas do gráfico, células sticky — nunca translúcido */
-  --cf-glass: linear-gradient(160deg, rgba(30, 48, 80, 0.42), rgba(12, 22, 42, 0.55));
-  --cf-glass-solid: #0d1729; /* fallback sem backdrop-filter */
-  --cf-border: rgba(216, 230, 245, 0.14);
-  --cf-border-muted: rgba(216, 230, 245, 0.08);
-  --cf-border-strong: rgba(216, 230, 245, 0.26);
+  --cf-hairline: rgba(216, 231, 245, 0.12);
+  --cf-hairline-soft: rgba(216, 231, 245, 0.07);
 
-  /* Acentos */
-  --cf-electric: #3e86f7; /* ação primária, foco, nav ativa — iluminação seletiva */
-  --cf-cyan: #5fc4ff; /* EXCLUSIVO do que vem do modelo (IA) */
-  --cf-ice: #dbe7f5; /* branco-gelo: contornos, vela de alta vazada, valores de alta */
-  --cf-glow: 0 0 24px rgba(62, 134, 247, 0.35); /* no máx. 1 por tela */
-
-  /* Dados — alta gelo × baixa vermelha (ΔE deutan 30.3, audit.md) */
-  --cf-up: #dbe7f5;
+  /* --- Acentos semânticos (Design.md §4.2) --- */
+  --cf-electric: #3e86f7;
+  --cf-cyan: #5fc4ff;
+  --cf-ice: #dbe7f5;
   --cf-down: #e5484d;
-  --cf-flat: #66788f;
-  --cf-up-soft: rgba(219, 231, 245, 0.28);
-  --cf-down-soft: rgba(229, 72, 77, 0.3);
+  --cf-best: #62f6a2; /* EXCLUSIVO do melhor cenário no Monte Carlo */
+  --cf-warn: #d6b25e;
 
-  /* Estados de sistema */
-  --cf-warning: #d6b25e; /* dourado, só para dado velho; sempre com ícone + texto */
-  --cf-warning-bg: rgba(214, 178, 94, 0.12);
-  --cf-danger: #e5484d;
-  --cf-danger-bg: rgba(229, 72, 77, 0.12);
-  --cf-primary-soft: rgba(62, 134, 247, 0.14);
-  --cf-forecast-fill: rgba(95, 196, 255, 0.1); /* área reservada de previsão = ciano (IA) */
+  /* Derivados de uso (nunca novas cores: só alfa dos tokens acima). */
+  --cf-up: var(--cf-ice); /* alta comum = gelo; verde não é a cor global de alta */
+  --cf-flat: var(--cf-text-dim);
+  --cf-electric-soft: rgba(62, 134, 247, 0.14);
+  --cf-cyan-soft: rgba(95, 196, 255, 0.12);
+  --cf-warn-soft: rgba(214, 178, 94, 0.12);
+  --cf-down-soft: rgba(229, 72, 77, 0.12);
+  --cf-row-wash: linear-gradient(90deg, rgba(62, 134, 247, 0.10), rgba(62, 134, 247, 0.02) 72%, transparent);
+
+  /* --- Shell (Design.md §5) --- */
+  --cf-header-h: 60px;
+  --cf-tabbar-h: calc(58px + env(safe-area-inset-bottom));
+  --cf-shell-max: 1680px;
+
+  /* --- Movimento (Design.md §7.1) --- */
+  --cf-ease-section: cubic-bezier(0.32, 0.72, 0, 1);
+  --cf-ease-micro: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --cf-dur-section: 800ms;
+  --cf-dur-micro: 220ms;
+
+  /* --- Mapeamento Nuxt UI (semânticos) --- */
+  --ui-radius: 0.5rem; /* 8px em controles; 12px em popover/modal via slots */
+  --ui-header-height: var(--cf-header-h);
+
+  --ui-bg: var(--cf-bg-0);
+  --ui-bg-muted: #071120;
+  --ui-bg-elevated: var(--cf-surface-solid);
+  --ui-bg-accented: #12203a;
+  --ui-border: var(--cf-hairline);
+  --ui-border-muted: var(--cf-hairline-soft);
+  --ui-border-accented: rgba(216, 231, 245, 0.26);
+  --ui-text-highlighted: var(--cf-text-hi);
+  --ui-text: var(--cf-text);
+  --ui-text-muted: var(--cf-text-muted);
+  --ui-text-dimmed: var(--cf-text-dim);
+  --ui-text-inverted: #04070f; /* sobre o botão elétrico — contraste 7.4:1 */
+  --ui-primary: var(--cf-electric);
+}
+
+@media (min-width: 768px) {
+  :root {
+    --cf-header-h: 72px;
+  }
 }
 
 @layer base {
   html {
-    font-size: 13.5px;
+    font-size: 16px;
     line-height: 1.5;
+    scroll-behavior: smooth;
+    /* A barra inferior do mobile não pode cobrir o alvo de foco (Design.md §6.2). */
+    scroll-padding-bottom: calc(var(--cf-tabbar-h) + 16px);
+    scroll-padding-top: calc(var(--cf-header-h) + 16px);
   }
 
   /*
-   * Fundo pintado no body E no root do app (#__nuxt tem `isolation: isolate`
-   * pelo Nuxt UI: o mix-blend-mode da logo só enxerga o que está pintado
-   * dentro desse grupo — sem isto, o fundo preto do PNG ficaria visível).
+   * Profundidade mineral: nunca preto sólido contínuo (Design.md §4.3).
+   * Pintado no body E no #__nuxt (o Nuxt UI aplica `isolation: isolate` no root).
    */
   body,
   #__nuxt {
-    background-color: var(--cf-bg);
-    /* Luz ambiente: um brilho azul por página, no topo (Design.md §2.1). */
-    background-image: radial-gradient(1200px 600px at 70% -10%, rgba(62, 134, 247, 0.1), transparent 60%);
+    background-color: var(--cf-bg-0);
+    background-image:
+      radial-gradient(1100px 650px at 62% 12%, rgba(30, 76, 112, 0.18), transparent 66%),
+      linear-gradient(145deg, #050811 0%, #081426 55%, #0a1721 100%);
     background-repeat: no-repeat;
     background-attachment: fixed;
   }
@@ -134,14 +160,37 @@
 
   body {
     @apply text-default antialiased;
+
+    font-family: var(--font-sans);
+    /* Nenhum overflow horizontal inesperado nas larguras alvo. */
+    overflow-x: clip;
+  }
+
+  /*
+   * Microgrão fixo 2,5 % — quebra a chapa digital sem prejudicar texto ou canvas.
+   * Overlay fixo + pointer-events:none: composto na GPU, sem repaint ao rolar.
+   */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    pointer-events: none;
+    opacity: 0.025;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 180px 180px;
   }
 
   h1, h2, h3 {
     text-wrap: balance;
-    letter-spacing: -0.01em;
   }
 
-  /* Anel de foco único em toda a UI (Design.md §4) */
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Anel de foco único em toda a UI (Design.md §16.2). */
   :focus-visible {
     outline: 2px solid var(--cf-electric);
     outline-offset: 2px;
@@ -149,10 +198,11 @@
 
   ::selection {
     background-color: rgba(62, 134, 247, 0.35);
-    color: var(--ui-text-highlighted);
+    color: var(--cf-text-hi);
   }
 
-  input, textarea {
+  input,
+  textarea {
     caret-color: var(--cf-electric);
   }
 
@@ -162,90 +212,264 @@
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(216, 230, 245, 0.18) transparent;
+    scrollbar-color: rgba(216, 231, 245, 0.18) transparent;
+  }
+
+  /* Compressão tátil dos botões (Design.md §7.1). */
+  button:not(:disabled):active,
+  [role='button']:not([aria-disabled='true']):active {
+    transform: scale(0.98);
   }
 
   @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
     *, *::before, *::after {
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+
+    button:not(:disabled):active,
+    [role='button']:not([aria-disabled='true']):active {
+      transform: none;
     }
   }
 }
 
-@utility num {
-  /* Todo número: mono + tabular (Design.md §3) */
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
+/* ===========================================================================
+   Shell e seções abertas
+   =========================================================================== */
+
+@utility cf-gutter {
+  /* Margem: 16–20px mobile · 24–32px tablet · 40–56px desktop (Design.md §5). */
+  padding-inline: 16px;
+
+  @media (min-width: 640px) {
+    padding-inline: 24px;
+  }
+
+  @media (min-width: 768px) {
+    padding-inline: 32px;
+  }
+
+  @media (min-width: 1024px) {
+    padding-inline: 40px;
+  }
+
+  @media (min-width: 1440px) {
+    padding-inline: 56px;
+  }
+}
+
+@utility cf-shell {
+  width: 100%;
+  max-width: var(--cf-shell-max);
+  margin-inline: auto;
+}
+
+@utility cf-section {
+  /* Espaço vertical entre seções: 72–96px mobile · 120–176px desktop. */
+  padding-block: 72px;
+
+  @media (min-width: 768px) {
+    padding-block: 104px;
+  }
+
+  @media (min-width: 1280px) {
+    padding-block: 136px;
+  }
+}
+
+@utility cf-section-tight {
+  padding-block: 56px;
+
+  @media (min-width: 768px) {
+    padding-block: 80px;
+  }
+}
+
+@utility cf-stage {
+  /* Seção narrativa de abertura: nunca 100vh fixo. */
+  min-height: calc(100dvh - var(--cf-header-h));
+}
+
+/* ===========================================================================
+   Tipografia (Design.md §3.2)
+   =========================================================================== */
+
+@utility cf-display {
+  /*
+   * 44px no mobile → ~65px em 1440 → 72px em telas largas (Design.md §3.2:
+   * 64–80 desktop, 44–56 mobile). A escala é contida de propósito: junto com
+   * `max-width: 24ch` ela mantém o display editorial em no máximo 3 linhas
+   * para manchetes de até ~60 caracteres — o tamanho real das leituras do dia.
+   */
+  font-size: clamp(2.75rem, 4.5vw, 4.5rem);
+  line-height: 0.98;
+  font-weight: 560;
+  letter-spacing: -0.035em;
+  color: var(--cf-text-hi);
+  text-wrap: balance;
+  max-width: 24ch;
+}
+
+@utility cf-h1 {
+  font-size: clamp(1.875rem, 3.2vw, 2.75rem); /* 30 → 44px */
+  line-height: 1.05;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--cf-text-hi);
+  text-wrap: balance;
+}
+
+@utility cf-h2 {
+  font-size: clamp(1.375rem, 2.2vw, 2rem); /* 22 → 32px */
+  line-height: 1.12;
+  font-weight: 580;
+  letter-spacing: -0.02em;
+  color: var(--cf-text-hi);
+  text-wrap: balance;
+}
+
+@utility cf-h3 {
+  font-size: 1.0625rem; /* 17px */
+  line-height: 1.3;
+  font-weight: 600;
+  color: var(--cf-text-hi);
+}
+
+@utility cf-body {
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--cf-text-muted);
+  max-width: 62ch;
+
+  @media (min-width: 1280px) {
+    font-size: 1.0625rem;
+  }
+}
+
+@utility cf-ui {
+  font-size: 0.875rem; /* 14px */
+  line-height: 1.45;
+  font-weight: 450;
 }
 
 @utility eyebrow {
-  /* Eyebrow/microcopy: mono 11, caixa alta, tracking +0.08em */
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 500;
+  font-size: 0.6875rem; /* 11px */
+  line-height: 1.2;
+  font-weight: 550;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
+
+  @media (min-width: 1024px) {
+    font-size: 0.75rem;
+  }
 }
 
-@utility glass {
-  /* Receita do vidro (Design.md §4) — cards 12px */
-  background: var(--cf-glass);
-  border: 1px solid var(--cf-border);
+@utility num {
+  /* Todo número: Geist Mono + tabular (Design.md §3.1). */
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'zero' 1;
+}
+
+/* ===========================================================================
+   Superfícies funcionais — só input, popover, menu, modal, drawer,
+   mensagem de estado e dock (Design.md §5.1). Conteúdo de página fica aberto.
+   =========================================================================== */
+
+@utility cf-surface {
+  background: var(--cf-surface);
+  border: 1px solid var(--cf-hairline);
   border-radius: 12px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
   backdrop-filter: blur(14px);
 
   @supports not (backdrop-filter: blur(1px)) {
-    background: var(--cf-glass-solid);
+    background: var(--cf-surface-solid);
   }
 
   @media (prefers-reduced-transparency: reduce) {
-    background: var(--cf-glass-solid);
+    background: var(--cf-surface-solid);
     backdrop-filter: none;
   }
 }
 
-@utility glass-hi {
-  /* Card em destaque: borda forte + glow elétrico — NO MÁXIMO um por tela */
-  background: var(--cf-glass);
-  border: 1px solid var(--cf-border-strong);
-  border-radius: 12px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 0 24px rgba(62, 134, 247, 0.35);
-  backdrop-filter: blur(14px);
+@utility cf-hairline-t {
+  border-top: 1px solid var(--cf-hairline);
+}
 
-  @supports not (backdrop-filter: blur(1px)) {
-    background: var(--cf-glass-solid);
+@utility cf-hairline-b {
+  border-bottom: 1px solid var(--cf-hairline);
+}
+
+@utility cf-rule {
+  /* Divisor de linha de tabela/lista. */
+  border-bottom: 1px solid var(--cf-hairline-soft);
+}
+
+/* ===========================================================================
+   Movimento (Design.md §7)
+   =========================================================================== */
+
+/*
+ * Entrada de seção. CSS puro, fora de `@layer`, e o estado revelado é um seletor
+ * composto: `.cf-reveal.cf-reveal-in` (0,2,0) sempre vence `.cf-reveal` (0,1,0),
+ * qualquer que seja a ordem em que o Tailwind emita as regras. As classes são
+ * aplicadas pela diretiva `v-reveal` — nunca escritas no template.
+ */
+.cf-reveal {
+  opacity: 0;
+  transform: translateY(var(--cf-reveal-y, 28px));
+  will-change: opacity, transform;
+}
+
+.cf-reveal.cf-reveal-in {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--cf-dur-section) var(--cf-ease-section) var(--cf-reveal-delay, 0ms),
+    transform var(--cf-dur-section) var(--cf-ease-section) var(--cf-reveal-delay, 0ms);
+  will-change: auto;
+}
+
+/* Sublinhado da navegação: cresce por scaleX a partir da origem correta. */
+@utility cf-navlink {
+  position: relative;
+  transition: color var(--cf-dur-micro) var(--cf-ease-micro);
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    bottom: -1px;
+    height: 1.5px;
+    background: var(--cf-electric);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform var(--cf-dur-micro) var(--cf-ease-micro);
   }
 
-  @media (prefers-reduced-transparency: reduce) {
-    background: var(--cf-glass-solid);
-    backdrop-filter: none;
+  &[aria-current='page']::after,
+  &:hover::after {
+    transform: scaleX(1);
+  }
+
+  &[aria-current='page']::after {
+    transform-origin: left center;
   }
 }
 
-@utility btn-glow {
-  /* Glow do CTA primário — só no botão primário único da tela */
-  box-shadow: 0 0 24px rgba(62, 134, 247, 0.35);
-}
+/* ===========================================================================
+   Cor semântica de dado (Design.md §4.2 / §14)
+   =========================================================================== */
 
-@utility ai-chip {
-  /* Chip do modelo: ciano é exclusivo do que vem da IA */
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--cf-cyan);
-  border: 1px solid rgba(95, 196, 255, 0.35);
-  border-radius: 999px;
-  padding: 2px 10px;
-  white-space: nowrap;
-}
-
-@utility text-ai {
-  color: var(--cf-cyan);
+@utility text-hi {
+  color: var(--cf-text-hi);
 }
 
 @utility text-up {
@@ -260,22 +484,60 @@
   color: var(--cf-flat);
 }
 
+@utility text-ai {
+  color: var(--cf-cyan);
+}
+
 @utility text-warn {
-  color: var(--cf-warning);
+  color: var(--cf-warn);
 }
 
-@utility bg-warn {
-  background-color: var(--cf-warning-bg);
+@utility text-best {
+  color: var(--cf-best);
 }
 
-@utility text-danger {
-  color: var(--cf-danger);
+@utility bg-warn-soft {
+  background-color: var(--cf-warn-soft);
 }
 
-@utility bg-primary-soft {
-  background-color: var(--cf-primary-soft);
+@utility bg-down-soft {
+  background-color: var(--cf-down-soft);
 }
 
-@utility bg-solid-surface {
-  background-color: var(--cf-solid);
+@utility bg-electric-soft {
+  background-color: var(--cf-electric-soft);
+}
+
+@utility cf-row-hover {
+  /* Wash horizontal discreto na linha ativa/hover (Design.md §11.2). */
+  background-image: var(--cf-row-wash);
+}
+
+/* ===========================================================================
+   Transição de rota (Design.md §7.1): ~240 ms de opacity/translate.
+   Nunca animar width, height, top ou left.
+   =========================================================================== */
+
+.cf-page-enter-active,
+.cf-page-leave-active {
+  transition:
+    opacity 240ms var(--cf-ease-micro),
+    transform 240ms var(--cf-ease-micro);
+}
+
+.cf-page-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.cf-page-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cf-page-enter-from,
+  .cf-page-leave-to {
+    transform: none;
+  }
 }

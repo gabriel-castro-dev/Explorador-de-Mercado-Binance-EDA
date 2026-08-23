@@ -109,3 +109,27 @@ export function usePreferences() {
 
   return { data, status, error, refresh, form, fieldErrors, dirty, saving, email, save }
 }
+
+/**
+ * Identidade mostrada no header (Design.md §6.1: "nome do usuário e menu da conta").
+ * Reusa a chave `preferences` do useAsyncData — nenhuma requisição extra por página.
+ */
+export function useAccountIdentity() {
+  const api = useApi()
+  const user = useSupabaseUser()
+  const { data } = useAsyncData<PreferencesOut | null>(
+    'preferences',
+    () => api.get('/api/v1/preferences'),
+    { default: () => null },
+  )
+
+  const email = computed(() => data.value?.email ?? (user.value?.email as string | undefined) ?? '')
+  const displayName = computed(() => data.value?.display_name?.trim() || '')
+  const firstName = computed(() => {
+    const name = displayName.value
+    if (name) return name.split(/\s+/)[0] as string
+    return email.value.split('@')[0] || 'Conta'
+  })
+
+  return { email, displayName, firstName }
+}

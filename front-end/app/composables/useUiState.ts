@@ -5,16 +5,13 @@ import { STORAGE_KEYS } from '~/utils/constants'
 export const useIndicatorsDrawer = () => useState<boolean>('cf-indicators-drawer', () => false)
 
 /**
- * Vela de alta vazada (padrão do Design.md v2 — a cara da logo). A opção de
- * acessibilidade em Preferências é a inversa: "Velas de alta preenchidas".
+ * Vela de alta vazada (Design.md §14.1: corpo gelo a 10 %, contorno 1 px). A opção
+ * de acessibilidade em Preferências é a inversa: "Velas de alta preenchidas".
  */
 export const useHollowCandles = () => useLocalStorage<boolean>(STORAGE_KEYS.hollowCandles, true)
 
-/** Cenários do modelo (melhor/esperado/pior) visíveis no gráfico. */
+/** Cenários do modelo (melhor/base/pior) visíveis depois da linha de corte. */
 export const useScenarioPref = () => useLocalStorage<boolean>(STORAGE_KEYS.scenarios, true)
-
-/** Dica de primeiro acesso já dispensada? */
-export const useOnboarded = () => useLocalStorage<boolean>(STORAGE_KEYS.onboarded, false)
 
 /** Último símbolo aberto em /graficos (atalho "Continuar de onde parou" no Início). */
 export const useLastSymbol = () => useLocalStorage<string>(STORAGE_KEYS.lastSymbol, '')

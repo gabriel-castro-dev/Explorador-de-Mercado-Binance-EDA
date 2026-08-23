@@ -18,16 +18,23 @@ export default defineNuxtConfig({
 
   app: {
     head: {
-      title: 'crypto forecasting',
+      title: 'CRYPTO FORECASTING',
       htmlAttrs: { lang: 'pt-BR' },
-      meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1' }],
+      meta: [
+        { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
+        { name: 'description', content: 'Forecasting, analytics e inteligencia de mercado sobre snapshots diarios da Binance. Horarios em UTC.' },
+        { name: 'color-scheme', content: 'dark' },
+        { name: 'theme-color', content: '#050811' },
+      ],
       link: [{ rel: 'icon', href: '/favicon.ico' }],
     },
+    // Mudanca de rota: opacity/translate discretos (Design.md §7.1) — nunca width/height/top/left.
+    pageTransition: { name: 'cf-page', mode: 'out-in' },
   },
 
   css: ['~/assets/css/main.css'],
 
-  // Dark-only (Design.md v2): sem alternância de tema, sem @nuxtjs/color-mode.
+  // Dark-only (Design.md §6.1): sem alternancia de tema, sem @nuxtjs/color-mode.
   ui: {
     colorMode: false,
   },
