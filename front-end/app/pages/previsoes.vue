@@ -1,168 +1,146 @@
 <script setup lang="ts">
-import type { TableColumn } from '@nuxt/ui'
-import { EM_DASH } from '~/utils/format'
-
-useHead({ title: 'Previsões · crypto forecasting' })
+import { HORIZONS, type HorizonSummary } from '~/types/forecast'
+import { formatNumber, formatUtc } from '~/utils/format'
 
 /**
- * Estado final da tela (Design.md §5/§6): a API de forecasts chega no marco 3.
- * Até lá, chips e tabela mostram o layout real com valores vazios — nunca
- * números fabricados — e o chip "IA · v0 · em validação" marca o bloco.
+ * Previsões (Design.md §11): resumo da rodada, horizontes, tabela de cenários e
+ * Monte Carlo. Enquanto a API de forecasts não existir no contrato, cada
+ * superfície mostra o estado honesto — nenhuma trajetória e nenhum número.
  */
-interface ForecastRow {
-  symbol: string
-  price: string
-  daily: string
-  weekly: string
-  monthly: string
-  yearly: string
-  confidence: string
+useHead({ title: 'Previsões · CRYPTO FORECASTING' })
+
+const forecasts = useForecasts()
+const monteCarlo = useMonteCarlo()
+
+const refreshing = ref(false)
+async function refresh() {
+  if (refreshing.value) return
+  refreshing.value = true
+  try {
+    await forecasts.refresh()
+  } finally {
+    refreshing.value = false
+  }
 }
 
-const modelChips = [
-  { label: 'Versão do modelo', value: EM_DASH },
-  { label: 'MAE da rodada', value: EM_DASH },
-  { label: 'Acerto de direção', value: EM_DASH },
-]
+/** Sem rodada publicada, os quatro horizontes existem como estrutura com `—`. */
+const horizons = computed<HorizonSummary[]>(() => {
+  const published = forecasts.round.value?.horizons
+  if (published?.length) return [...published]
+  return HORIZONS.map(h => ({ key: h.key, changePercent: null }))
+})
 
-const columns: TableColumn<ForecastRow>[] = [
-  { accessorKey: 'symbol', header: 'Ativo' },
-  { accessorKey: 'price', header: 'Preço real', meta: { class: { th: 'text-right', td: 'text-right num' } } },
-  { accessorKey: 'daily', header: 'Previsão diária', meta: { class: { th: 'text-right', td: 'text-right num' } } },
-  { accessorKey: 'weekly', header: 'Semanal', meta: { class: { th: 'text-right', td: 'text-right num' } } },
-  { accessorKey: 'monthly', header: 'Mensal', meta: { class: { th: 'text-right', td: 'text-right num' } } },
-  { accessorKey: 'yearly', header: 'Anual', meta: { class: { th: 'text-right', td: 'text-right num' } } },
-  { accessorKey: 'confidence', header: 'Confiança', meta: { class: { th: 'text-right', td: 'text-right num' } } },
-]
+const roundSubtitle = computed(() => {
+  const round = forecasts.round.value
+  if (!round) return 'Top 20 ativos · nenhuma rodada publicada'
+  return `Top 20 ativos · rodada de ${formatUtc(round.generatedAt)}`
+})
 
-const rows: ForecastRow[] = []
+const DISCLAIMER = 'Leia as previsões como cenários, não como recomendação de compra ou venda.'
 </script>
 
 <template>
-  <div class="space-y-4">
-    <!-- Cabeçalho + chips do modelo -->
-    <div class="flex flex-wrap items-end justify-between gap-4">
+  <div class="cf-gutter cf-shell pt-10 pb-16 md:pt-12 md:pb-24">
+    <!-- Cabeçalho + faixa de versão/MAE/direção -->
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
       <div>
-        <h1 class="text-[24px] font-bold tracking-[-.01em] text-highlighted">
-          Previsões
+        <h1 class="cf-h1 uppercase">
+          Previsões do modelo
         </h1>
-        <p class="mt-1.5 text-[13px] text-muted">
-          Horizontes diário, semanal, mensal e anual para os top 20 ativos, com a confiança do backtesting.
+        <p class="num mt-2.5 text-[13px] text-muted">
+          {{ roundSubtitle }}
         </p>
       </div>
-      <div class="flex flex-wrap items-center gap-2">
-        <span
-          v-for="chip in modelChips"
-          :key="chip.label"
-          class="num inline-flex h-8 items-center gap-2 rounded-full border border-default px-3 text-[11px] text-muted"
-        >
-          <span class="eyebrow">{{ chip.label }}</span>
-          <span class="text-default">{{ chip.value }}</span>
-        </span>
-        <span class="ai-chip">IA · v0 · em validação</span>
-      </div>
+      <ForecastRoundFacts :round="forecasts.round.value" />
     </div>
 
-    <!-- Resumo da rodada (texto de agente) — único glass-hi da tela -->
+    <!-- Resumo da rodada + horizontes (Design.md §11.1) -->
     <section
-      class="glass-hi flex items-start gap-4 px-5 py-4"
-      aria-label="Resumo da rodada"
+      class="cf-section grid gap-14 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] lg:items-center lg:gap-12 xl:gap-16"
+      aria-label="Resumo da rodada e horizontes"
     >
-      <span class="mt-0.5 inline-flex size-[38px] flex-none items-center justify-center rounded-[10px] border border-[rgba(95,196,255,.35)] bg-[rgba(95,196,255,.10)] text-ai">
-        <UIcon
-          name="i-lucide-sparkles"
-          class="size-[18px]"
-        />
-      </span>
-      <div class="min-w-0 flex-1">
-        <div class="flex flex-wrap items-center gap-2">
-          <h2 class="font-bold text-highlighted">
-            Resumo da rodada, pelo agente
-          </h2>
-          <span class="ai-chip text-[10px]">IA · v0 · em validação</span>
-        </div>
-        <p
-          class="mt-1 text-[13px] text-muted"
-          role="status"
-        >
-          O modelo ainda não publicou previsões. Quando a primeira rodada sair, este resumo cita os três maiores gaps entre preço e projeção e a média de erro por horizonte.
-        </p>
-        <p class="mt-2 text-[11.5px] text-dimmed">
-          Leia as previsões como cenários, não como recomendação de compra ou venda.
-        </p>
+      <ForecastRoundSummary :round="forecasts.round.value" />
+      <div v-reveal="{ y: 28, delay: 120 }">
+        <ForecastHorizonArcs :horizons="horizons" />
       </div>
     </section>
 
-    <!-- Tabela top-20 -->
-    <UCard :ui="{ body: 'p-0 sm:p-0' }">
-      <template #header>
-        <h2 class="eyebrow text-muted">
-          Top 20 · previsões por horizonte
-        </h2>
-      </template>
-      <UTable
-        :data="rows"
-        :columns="columns"
-        class="text-[12.5px]"
-        :ui="{ th: 'eyebrow text-dimmed py-2', td: 'py-2 whitespace-nowrap' }"
-      >
-        <template #empty>
-          <div class="flex flex-col items-center gap-2 px-4 py-10 text-center">
-            <span class="ai-chip">IA · v0 · em validação</span>
-            <p class="text-[13px] text-muted">
-              O modelo ainda não publicou previsões para os ativos rastreados.
-            </p>
-            <p class="max-w-[52ch] text-[12px] text-dimmed">
-              A tabela estreia com o marco de ML: valor previsto e variação contra o preço real (gelo acima, vermelho abaixo) em cada horizonte, mais a confiança do backtesting.
-            </p>
-          </div>
-        </template>
-      </UTable>
-    </UCard>
+    <p class="cf-hairline-t flex items-start gap-3 pt-5 text-[14px] text-muted">
+      <UIcon
+        name="i-lucide-info"
+        class="mt-0.5 size-4 shrink-0 text-dimmed"
+        aria-hidden="true"
+      />
+      <span>{{ DISCLAIMER }}</span>
+    </p>
 
-    <!-- Monte Carlo (em breve) + atalho para os cenários -->
-    <div class="grid gap-4 sm:grid-cols-2">
-      <section
-        class="glass flex items-start gap-3 px-5 py-4 opacity-70"
-        aria-label="Monte Carlo com backtesting (em breve)"
-      >
-        <UIcon
-          name="i-lucide-dices"
-          class="mt-0.5 size-5 flex-none text-dimmed"
-        />
-        <span class="min-w-0 flex-1">
-          <span class="flex items-center gap-2">
-            <span class="font-medium text-highlighted">Monte Carlo com backtesting</span>
-            <span
-              class="eyebrow rounded-full border border-default px-1.5 py-px text-[10px] text-dimmed"
-              aria-disabled="true"
-            >Em breve</span>
-          </span>
-          <span class="block text-[12px] text-muted">Distribuição de cenários simulados sobre o histórico real, validada contra o que de fato aconteceu.</span>
-        </span>
-      </section>
+    <!-- Tabela de cenários (Design.md §11.2) -->
+    <section class="cf-section">
+      <ForecastScenarioTable
+        v-reveal="{ y: 28 }"
+        :rows="forecasts.rows.value"
+        :refreshing="refreshing"
+        @refresh="refresh"
+      />
+    </section>
 
-      <NuxtLink
-        to="/graficos"
-        class="glass flex items-center gap-3 px-5 py-4 transition-colors hover:bg-muted"
+    <!-- Monte Carlo (Design.md §11.3) -->
+    <section
+      class="cf-section-tight"
+      aria-labelledby="monte-carlo-titulo"
+    >
+      <div
+        v-reveal="{ y: 24 }"
+        class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"
       >
-        <UIcon
-          name="i-lucide-chart-candlestick"
-          class="size-5 flex-none text-primary"
-        />
-        <span class="min-w-0 flex-1">
-          <span class="block font-medium text-highlighted">Cenários no gráfico</span>
-          <span class="block text-[12px] text-muted">Melhor caso, esperado e pior caso desenhados depois da linha de corte.</span>
-        </span>
-        <UIcon
-          name="i-lucide-arrow-right"
-          class="size-4 flex-none text-dimmed"
-        />
-      </NuxtLink>
-    </div>
+        <div>
+          <h2
+            id="monte-carlo-titulo"
+            class="cf-h2 uppercase"
+          >
+            Simulação Monte Carlo
+          </h2>
+          <p class="num mt-2 text-[13px] text-muted">
+            <template v-if="monteCarlo.series.value">
+              {{ formatNumber(monteCarlo.series.value.simulatedCount, 0) }} trajetórias ·
+              <span translate="no">{{ monteCarlo.series.value.symbol }}</span> ·
+              horizonte de {{ monteCarlo.series.value.horizonDays }} dias
+            </template>
+            <template v-else>
+              trajetórias simuladas a partir do último dado observado
+            </template>
+          </p>
+        </div>
 
-    <p class="text-[12px] text-dimmed">
-      Leia as previsões como cenários, não como recomendação de compra ou venda.
+        <!-- Controles só existem quando há o que controlar -->
+        <UButton
+          v-if="monteCarlo.series.value"
+          color="neutral"
+          variant="outline"
+          icon="i-lucide-refresh-cw"
+          label="Reiniciar simulação"
+          @click="monteCarlo.restart()"
+        />
+      </div>
+
+      <div class="mt-8">
+        <ClientOnly>
+          <ForecastMonteCarloChart
+            :series="monteCarlo.series.value"
+            :restart-token="monteCarlo.restartToken.value"
+          />
+          <template #fallback>
+            <div
+              class="h-[380px] md:h-[460px] xl:h-[520px]"
+              aria-hidden="true"
+            />
+          </template>
+        </ClientOnly>
+      </div>
+    </section>
+
+    <p class="cf-hairline-t pt-5 text-[13px] text-dimmed">
+      {{ DISCLAIMER }}
     </p>
   </div>
 </template>
