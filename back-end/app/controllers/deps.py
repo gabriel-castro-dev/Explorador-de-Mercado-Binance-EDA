@@ -8,6 +8,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.auth.verifier import TokenError, UserClaims, get_verifier
 from app.repositories.features_repository import FeaturesRepository
 from app.repositories.klines_repository import KlinesRepository
+from app.repositories.preferences_repository import PreferencesRepository
 from app.repositories.symbols_repository import SymbolsRepository
 from app.repositories.tickers_repository import TickersRepository
 from config import get_settings
@@ -73,7 +74,17 @@ def get_tickers_repo(supabase: SupabaseDep) -> TickersRepository:
     return TickersRepository(supabase=supabase)
 
 
+def get_preferences_repo(_claims: CurrentClaimsDep) -> PreferencesRepository:
+    """Firestore-backed repository. Scoping is done by the caller's claims.sub.
+
+    Firestore is reached with the Admin SDK, which bypasses security rules:
+    the token check above is the authorization boundary.
+    """
+    return PreferencesRepository()
+
+
 KlinesRepoDep = Annotated[KlinesRepository, Depends(get_klines_repo)]
 FeaturesRepoDep = Annotated[FeaturesRepository, Depends(get_features_repo)]
 SymbolsRepoDep = Annotated[SymbolsRepository, Depends(get_symbols_repo)]
 TickersRepoDep = Annotated[TickersRepository, Depends(get_tickers_repo)]
+PreferencesRepoDep = Annotated[PreferencesRepository, Depends(get_preferences_repo)]
