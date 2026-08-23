@@ -4,11 +4,11 @@ Data: 2026-08-19 · Status: aceito
 
 ## Contexto
 
-O dashboard precisa de forms com validação, select com busca, tabela ordenável, tabs, drawer/modal, toasts, skeletons e dark mode — e de um gráfico de candles com overlays (SMA/EMA/Bollinger), volume e painéis separados (RSI, MACD), com crosshair/zoom "de trading". A direção visual ("Observatório", analítico sóbrio — `docs/design/`) exige tema próprio (zinc + índigo, IBM Plex, raio ≤ 8 px) e cores de dados fora da semântica de UI.
+O dashboard precisa de forms com validação, select com busca, tabela ordenável, tabs, drawer/modal, toasts, skeletons e dark mode — e de um gráfico de candles com overlays (SMA/EMA/Bollinger), volume e painéis separados (RSI, MACD), com crosshair/zoom "de trading". A direção visual pode evoluir sem trocar essas bibliotecas; a especificação normativa atual vive em `docs/design/Design.md`.
 
 ## Decisão
 
-- **Nuxt UI v4** como biblioteca de componentes (Reka UI + Tailwind v4). Tema via `app.config.ts` (`primary: indigo`, `neutral: zinc`) e tokens em `app/assets/css/main.css`. Cores de dados (alta/baixa, séries) vivem em `utils/constants.ts` + CSS vars `--cf-*`, nunca em `success`/`error` do tema.
+- **Nuxt UI v4** como biblioteca de componentes (Reka UI + Tailwind v4). Tema e tokens são customizados conforme `docs/design/Design.md`. Cores de dados (alta/baixa, séries) vivem em `utils/constants.ts` + CSS vars `--cf-*`, nunca em `success`/`error` do tema.
 - **Lightweight Charts v5** para o gráfico: `addSeries(CandlestickSeries|LineSeries|HistogramSeries|BaselineSeries, opts, paneIndex)`, panes com `setStretchFactor`, `WhitespaceData` para warm-up, formatadores pt-BR/UTC por série. Legenda, linha de corte e área reservada à previsão são HTML sobreposto posicionado com `timeToCoordinate`/`getHTMLElement`.
 
 ## Alternativas descartadas

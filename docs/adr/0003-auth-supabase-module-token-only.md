@@ -10,7 +10,7 @@ A API não emite tokens: valida localmente (JWKS ES256/RS256) o access token do 
 
 - Módulo **`@nuxtjs/supabase` v2** com `useSsrCookies: false` (SPA sem servidor → supabase-js em localStorage, fluxo implícito), `redirect: true` (guard global para `/login`), `redirectOptions.callback = /confirm`, `saveRedirectToCookie` (volta para onde estava após login expirado). Só a **publishable key** chega ao cliente (`NUXT_PUBLIC_SUPABASE_KEY`).
 - Cliente da API (`composables/useApi.ts`): injeta `Bearer` de `supabase.auth.getSession()`; em 401 tenta `refreshSession()` uma vez e repete; se ainda 401 → `signOut()`, `clearNuxtData()`, toast e `/login?reason=expired` (uma única expiração por vez).
-- Mensagens de auth **genéricas** (nunca revelar se um e-mail existe) — textos exatos em `useAuthActions.ts` (`AUTH_COPY`), espelhando `docs/design/ux-spec.md §3`.
+- Mensagens de auth **genéricas** (nunca revelar se um e-mail existe) — textos normativos em `docs/design/Design.md` §8 e espelhados em `useAuthActions.ts` (`AUTH_COPY`).
 - Plugin `auth-hash.client.ts` (order −30) captura `#access_token&type=signup|recovery` antes do supabase-js limpar o hash, para `/confirm` e `/reset-password` saberem o tipo do link.
 
 ## Consequências
