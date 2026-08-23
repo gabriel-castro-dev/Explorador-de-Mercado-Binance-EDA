@@ -47,8 +47,9 @@ def create_app() -> FastAPI:
             },
             {
                 "name": "insights",
-                "description": "Textos gerados por LLM (OpenRouter) sobre os numeros do "
-                "dia. Cache global por dia UTC; nunca inventa dados.",
+                "description": "Textos gerados por LLM (OpenCode Zen com fallback para "
+                "OpenRouter) sobre os numeros do dia. Cache global por dia UTC; nunca "
+                "inventa dados.",
             },
         ],
     )

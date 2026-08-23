@@ -1,6 +1,6 @@
-"""Offline tests for the daily reading (LLM via OpenRouter, cached per UTC day).
+"""Offline tests for the daily reading (LLM em cadeia de gateways, cache por dia UTC).
 
-No network: the OpenRouter client and Firestore are faked; repositories are
+No network: the gateway client and Firestore are faked; repositories are
 plain mocks. The FastAPI layer is exercised through dependency overrides,
 mirroring tests/test_preferences.py.
 """
@@ -16,13 +16,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi.testclient import TestClient
 
 from app.auth.verifier import UserClaims
-from app.clients.openrouter_client import OpenRouterError
+from app.clients.llm_gateway import GatewayAttempt, LlmGatewayClient, LlmGatewayError
 from app.schemas.insights import DailyReadingOut
 from app.services import insights_service
 from app.services.insights_service import (
     DISCLAIMER,
     InsightsService,
     InsightsUnavailableError,
+    build_attempts,
 )
 from config import get_settings
 
@@ -34,6 +35,7 @@ _ENV = {
     "BINANCE_API_SECRET": "x",
     "FIREBASE_CREDENTIALS_PATH": "",
     "FIREBASE_CREDENTIALS_JSON": "",
+    "OPENCODE_ZEN_API_KEY": "zen-test-key",
     "OPENROUTER_API_KEY": "or-test-key",
 }
 
@@ -63,7 +65,7 @@ def _service(reading_text="Texto do dia.", snapshots=None, firestore_stored=None
     features.query_features.return_value = [{"atr_14": 4.2}]
 
     client = MagicMock()
-    client.complete.return_value = (reading_text, "deepseek/deepseek-v4-flash")
+    client.complete.return_value = (reading_text, "opencode-zen/deepseek-v4-flash-free")
 
     snapshot = MagicMock()
     snapshot.exists = firestore_stored is not None
@@ -115,27 +117,42 @@ class InsightsServiceTests(unittest.TestCase):
         reading = service.get_daily_reading()
         self.assertEqual(reading.text, "Mercado comprador hoje.")
         self.assertEqual(reading.disclaimer, DISCLAIMER)
-        self.assertEqual(reading.model, "deepseek/deepseek-v4-flash")
+        self.assertEqual(reading.model, "opencode-zen/deepseek-v4-flash-free")
         document.set.assert_called_once()
         # Segunda chamada: cache de processo, sem novo LLM.
         again = service.get_daily_reading()
         self.assertIs(again, reading)
         client.complete.assert_called_once()
 
-    def test_fallback_models_are_passed_in_priority_order(self):
+    def test_fallback_chain_zen_first_then_openrouter(self):
+        """Ordem decidida com o usuário: Zen deepseek free → Zen nemotron → OpenRouter."""
         service, client, _ = _service()
         service.get_daily_reading()
-        models = client.complete.call_args.kwargs["models"]
+        attempts = client.complete.call_args.args[0]
         self.assertEqual(
-            models,
-            ["deepseek/deepseek-v4-flash", "nvidia/nemotron-3-ultra-550b-a55b:free"],
+            [(a.provider, a.model) for a in attempts],
+            [
+                ("opencode-zen", "deepseek-v4-flash-free"),
+                ("opencode-zen", "nemotron-3-ultra-free"),
+                ("openrouter", "nvidia/nemotron-3-ultra-550b-a55b:free"),
+            ],
+        )
+
+    def test_build_attempts_skips_gateways_without_a_key(self):
+        with patch.dict(os.environ, {"OPENCODE_ZEN_API_KEY": ""}):
+            get_settings.cache_clear()
+            attempts = build_attempts(get_settings())
+        get_settings.cache_clear()
+        self.assertEqual(
+            [(a.provider, a.model) for a in attempts],
+            [("openrouter", "nvidia/nemotron-3-ultra-550b-a55b:free")],
         )
 
     def test_firestore_document_wins_over_generation(self):
         stored = DailyReadingOut(
             date=insights_service._today_utc(),
             generated_at="2026-08-23T09:00:00Z",
-            model="deepseek/deepseek-v4-flash",
+            model="opencode-zen/deepseek-v4-flash-free",
             text="Leitura já gravada.",
             disclaimer=DISCLAIMER,
         ).model_dump(mode="json")
@@ -144,11 +161,37 @@ class InsightsServiceTests(unittest.TestCase):
         self.assertEqual(reading.text, "Leitura já gravada.")
         client.complete.assert_not_called()
 
-    def test_openrouter_failure_becomes_unavailable(self):
+    def test_gateway_chain_failure_becomes_unavailable(self):
         service, client, _ = _service()
-        client.complete.side_effect = OpenRouterError("timeout")
+        client.complete.side_effect = LlmGatewayError("todas as tentativas falharam")
         with self.assertRaises(InsightsUnavailableError):
             service.get_daily_reading()
+
+    def test_client_falls_through_the_chain_and_reports_the_winner(self):
+        """O client real tenta na ordem e devolve provider/model de quem respondeu."""
+        client = LlmGatewayClient()
+        attempts = [
+            GatewayAttempt(provider="opencode-zen", api_key="k", model="deepseek-v4-flash-free"),
+            GatewayAttempt(provider="opencode-zen", api_key="k", model="nemotron-3-ultra-free"),
+            GatewayAttempt(provider="openrouter", api_key="k2", model="nvidia/nemotron:free"),
+        ]
+        calls = []
+
+        def fake_once(attempt, **_kwargs):
+            calls.append((attempt.provider, attempt.model))
+            if len(calls) < 3:
+                raise LlmGatewayError("indisponível")
+            return "Texto final."
+
+        with patch.object(LlmGatewayClient, "_complete_once", side_effect=fake_once):
+            text, model = client.complete(attempts, system="s", user="u")
+        self.assertEqual(text, "Texto final.")
+        self.assertEqual(model, "openrouter/nvidia/nemotron:free")
+        self.assertEqual(len(calls), 3)
+
+    def test_client_with_empty_chain_raises(self):
+        with self.assertRaises(LlmGatewayError):
+            LlmGatewayClient().complete([], system="s", user="u")
 
 
 class InsightsApiTests(unittest.TestCase):

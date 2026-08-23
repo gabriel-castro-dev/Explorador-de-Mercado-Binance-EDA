@@ -53,13 +53,18 @@ class Settings(BaseSettings):
     FIREBASE_CREDENTIALS_JSON: Optional[str] = None
     FIRESTORE_COLLECTION: str = "user_preferences"
 
-    # --- OpenRouter (leitura do dia gerada por LLM; a chave fica SO no servidor) ---
-    # Slugs verificados em 2026-08-23 via GET /api/v1/models: nao existe variante
-    # ":free" do deepseek-v4-flash (o modelo e pago, ~US$ 0,05/M tokens de entrada);
-    # o fallback Nemotron 3 Ultra tem variante ":free" real.
+    # --- Gateways de LLM (leitura do dia; as chaves ficam SO no servidor) ---
+    # Cadeia de fallback, na ordem: OpenCode Zen deepseek-v4-flash-free ->
+    # OpenCode Zen nemotron-3-ultra-free -> OpenRouter nemotron :free.
+    # Slugs verificados em 2026-08-23 nos /models dos dois gateways: o Zen tem
+    # "deepseek-v4-flash-free"; no OpenRouter o deepseek v4 flash NAO tem
+    # variante ":free" (por isso o fallback la e o Nemotron gratuito).
+    # Um gateway sem chave configurada e pulado na cadeia.
+    OPENCODE_ZEN_API_KEY: Optional[str] = None
+    OPENCODE_ZEN_MODEL: str = "deepseek-v4-flash-free"
+    OPENCODE_ZEN_FALLBACK_MODEL: Optional[str] = "nemotron-3-ultra-free"
     OPENROUTER_API_KEY: Optional[str] = None
-    OPENROUTER_MODEL: str = "deepseek/deepseek-v4-flash"
-    OPENROUTER_FALLBACK_MODEL: Optional[str] = "nvidia/nemotron-3-ultra-550b-a55b:free"
+    OPENROUTER_MODEL: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
     DAILY_READINGS_COLLECTION: str = "daily_readings"
 
     @field_validator(
@@ -70,6 +75,7 @@ class Settings(BaseSettings):
         "SUPABASE_JWT_SECRET",
         "FIREBASE_CREDENTIALS_PATH",
         "FIREBASE_CREDENTIALS_JSON",
+        "OPENCODE_ZEN_API_KEY",
         "OPENROUTER_API_KEY",
     )
     @classmethod
