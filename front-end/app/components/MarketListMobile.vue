@@ -5,6 +5,10 @@ import { symbolName } from '~/utils/constants'
 import { sortTickers, tickerHasData, type TickerSortKey } from '~/utils/tickers'
 import { arrowOf, formatCompact, formatPercent, formatPrice, toneOf } from '~/utils/format'
 
+/**
+ * Mercado no mobile (Design.md §12.1): linhas de 56 px, símbolo e nome à
+ * esquerda, último preço e variação à direita. Lista aberta, sem card.
+ */
 const props = defineProps<{
   rows: readonly Ticker24h[]
   selectedSymbol: string | null
@@ -37,72 +41,65 @@ function toneClass(v: number | null | undefined) {
 
 <template>
   <div>
-    <div class="mb-2 flex items-center justify-between">
-      <span class="text-[12px] text-muted">{{ props.rows.length }} ativos</span>
+    <div class="cf-hairline-b flex items-center justify-between gap-3 pb-3">
+      <span class="num text-[12px] text-dimmed">{{ props.rows.length }} ativos</span>
       <UDropdownMenu :items="menu">
         <UButton
           color="neutral"
-          variant="outline"
+          variant="ghost"
           size="sm"
-          :label="sortLabel"
+          :label="`Ordenar: ${sortLabel}`"
           trailing-icon="i-lucide-chevron-down"
-          aria-label="Ordenar por"
         />
       </UDropdownMenu>
     </div>
-    <UCard
-      class="rounded-lg"
-      :ui="{ body: 'p-0 sm:p-0' }"
+
+    <div
+      v-if="props.loading && !props.rows.length"
+      role="status"
+      aria-busy="true"
     >
+      <span class="sr-only">Carregando o mercado…</span>
       <div
-        v-if="props.loading && !props.rows.length"
-        class="divide-y divide-muted"
+        v-for="i in 8"
+        :key="i"
+        class="cf-rule flex h-14 items-center justify-between"
       >
-        <div
-          v-for="i in 8"
-          :key="i"
-          class="flex h-14 items-center justify-between px-4"
-        >
-          <USkeleton class="h-3 w-24" />
-          <USkeleton class="h-3 w-20" />
-        </div>
+        <USkeleton class="h-3 w-28" />
+        <USkeleton class="h-3 w-20" />
       </div>
-      <ul
-        v-else
-        class="divide-y divide-muted"
+    </div>
+
+    <ul v-else>
+      <li
+        v-for="t in sorted"
+        :key="t.symbol"
+        class="cf-rule"
       >
-        <li
-          v-for="t in sorted"
-          :key="t.symbol"
+        <NuxtLink
+          :to="{ path: '/graficos', query: { symbol: t.symbol, tf: props.tf } }"
+          class="flex h-14 items-center justify-between gap-3"
+          :class="t.symbol === props.selectedSymbol ? 'cf-row-hover' : ''"
         >
-          <NuxtLink
-            :to="{ path: '/graficos', query: { symbol: t.symbol, tf: props.tf } }"
-            class="flex h-14 items-center justify-between gap-3 px-4"
-            :class="t.symbol === props.selectedSymbol ? 'bg-primary-soft' : ''"
-          >
-            <span class="min-w-0">
-              <span
-                class="num block font-medium text-highlighted"
-                translate="no"
-              >{{ t.symbol }}</span>
-              <span class="num block truncate text-[11px] text-muted">
-                <template v-if="!tickerHasData(t)">sem dados</template>
-                <template v-else>{{ symbolName(t.symbol) ?? '' }}{{ symbolName(t.symbol) ? ' · ' : '' }}vol {{ formatCompact(t.quote_volume) }}</template>
-              </span>
+          <span class="min-w-0">
+            <span
+              class="num block text-[15px] text-hi"
+              translate="no"
+            >{{ t.symbol }}</span>
+            <span class="num block truncate text-[11px] text-muted">
+              <template v-if="!tickerHasData(t)">sem dados</template>
+              <template v-else>{{ symbolName(t.symbol) ?? '' }}{{ symbolName(t.symbol) ? ' · ' : '' }}vol {{ formatCompact(t.quote_volume) }}</template>
             </span>
-            <span class="num flex shrink-0 flex-col items-end">
-              <span class="text-default">{{ formatPrice(t.last_price) }}</span>
-              <span
-                class="text-[12px]"
-                :class="toneClass(t.price_change_percent)"
-              >{{ arrowOf(t.price_change_percent) }} {{ formatPercent(t.price_change_percent) }}</span>
-            </span>
-          </NuxtLink>
-        </li>
-      </ul>
-    </UCard>
-    <p class="num mt-2 text-[11px] text-dimmed">
-      Lista resumida no celular · a tabela completa está no desktop
-    </p>
+          </span>
+          <span class="num flex shrink-0 flex-col items-end">
+            <span class="text-[15px] text-default">{{ formatPrice(t.last_price) }}</span>
+            <span
+              class="text-[12px]"
+              :class="toneClass(t.price_change_percent)"
+            >{{ arrowOf(t.price_change_percent) }} {{ formatPercent(t.price_change_percent) }}</span>
+          </span>
+        </NuxtLink>
+      </li>
+    </ul>
   </div>
 </template>

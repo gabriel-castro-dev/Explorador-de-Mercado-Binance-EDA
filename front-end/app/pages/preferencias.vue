@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { maskBrPhoneInput } from '~/utils/phone'
 
-useHead({ title: 'Preferências · crypto forecasting' })
+/**
+ * Preferências (Design.md §12.2): seções abertas separadas por macroespaço e
+ * hairlines. Só os campos são superfícies — nenhuma seção recebe card.
+ */
+useHead({ title: 'Preferências · CRYPTO FORECASTING' })
 
 const prefs = usePreferences()
 const { form, fieldErrors } = prefs
@@ -16,221 +20,243 @@ const topics = [
 function onPhoneInput() {
   form.phone = maskBrPhoneInput(form.phone)
 }
-
-function discard() {
-  prefs.refresh()
-}
 </script>
 
 <template>
-  <div class="mx-auto max-w-[1080px] space-y-4">
+  <div class="cf-gutter cf-shell pt-10 pb-16 md:pt-12 md:pb-24">
     <div>
-      <h1 class="text-[24px] font-bold tracking-[-.01em] text-highlighted">
+      <h1 class="cf-h1 uppercase">
         Preferências
       </h1>
-      <p class="mt-1.5 text-[13px] text-muted">
+      <p class="mt-2.5 text-[15px] text-muted">
         Seus dados e o que você quer receber deste painel.
       </p>
     </div>
 
     <div
       v-if="prefs.status.value === 'pending' && !prefs.data.value"
-      class="grid gap-4 lg:grid-cols-2"
+      class="mt-16 space-y-6"
+      role="status"
+      aria-busy="true"
     >
-      <div
-        v-for="i in 2"
-        :key="i"
-        class="glass space-y-3 p-6"
-      >
-        <USkeleton class="h-4 w-40" />
-        <USkeleton class="h-9 w-full" />
-        <USkeleton class="h-9 w-full" />
-        <USkeleton class="h-9 w-2/3" />
-      </div>
+      <span class="sr-only">Carregando as preferências…</span>
+      <USkeleton class="h-5 w-48" />
+      <USkeleton class="h-11 w-full max-w-[420px]" />
+      <USkeleton class="h-11 w-full max-w-[420px]" />
+      <USkeleton class="h-11 w-full max-w-[300px]" />
     </div>
 
     <ErrorState
       v-else-if="prefs.status.value === 'error' && !prefs.data.value"
       title="Não foi possível carregar as preferências"
-      description="Tente novamente em instantes."
+      description="A API não respondeu. Tente de novo em alguns segundos."
       :retrying="false"
       @retry="prefs.refresh()"
     />
 
-    <div
-      v-else
-      class="grid items-start gap-4 lg:grid-cols-[1fr_1.2fr]"
-    >
-      <!-- Dados pessoais + acessibilidade -->
+    <template v-else>
+      <!-- Dados pessoais -->
       <section
-        class="glass flex flex-col gap-4 p-6"
-        aria-label="Dados pessoais"
+        class="cf-hairline-b cf-section-tight grid gap-8 lg:grid-cols-[minmax(0,260px)_minmax(0,1fr)] lg:gap-16"
+        aria-labelledby="prefs-dados"
       >
-        <div class="flex items-center gap-2.5">
-          <UIcon
-            name="i-lucide-user"
-            class="size-[18px] text-primary"
-          />
-          <h2 class="text-[15px] font-bold text-highlighted">
+        <div>
+          <h2
+            id="prefs-dados"
+            class="cf-h2"
+          >
             Dados pessoais
           </h2>
+          <p class="mt-3 text-[14px] text-muted">
+            Como o painel chama você e por onde podemos avisar.
+          </p>
         </div>
 
-        <UFormField
-          label="Nome"
-          :error="fieldErrors.displayName ?? undefined"
-        >
-          <UInput
-            v-model="form.displayName"
-            autocomplete="name"
-            :maxlength="120"
-            placeholder="Como você quer ser chamado"
-            class="w-full"
-          />
-        </UFormField>
+        <div class="max-w-[460px] space-y-6">
+          <UFormField
+            label="Nome"
+            size="lg"
+            :error="fieldErrors.displayName ?? undefined"
+          >
+            <UInput
+              v-model="form.displayName"
+              autocomplete="name"
+              :maxlength="120"
+              placeholder="Como você quer ser chamado"
+              class="w-full"
+            />
+          </UFormField>
 
-        <UFormField label="E-mail">
-          <UInput
-            :model-value="prefs.email.value ?? ''"
-            disabled
-            icon="i-lucide-mail"
-            class="w-full"
-            :ui="{ base: 'disabled:opacity-70' }"
-          />
-          <template #help>
-            O e-mail vem da sua conta e não muda por aqui.
-          </template>
-        </UFormField>
+          <UFormField
+            label="E-mail"
+            size="lg"
+            help="O e-mail vem da sua conta e não muda por aqui."
+          >
+            <UInput
+              :model-value="prefs.email.value ?? ''"
+              readonly
+              autocomplete="email"
+              icon="i-lucide-mail"
+              class="w-full"
+              :ui="{ base: 'read-only:text-muted' }"
+            />
+          </UFormField>
 
-        <UFormField
-          label="Telefone celular"
-          :error="fieldErrors.phone ?? undefined"
-        >
-          <UInput
-            v-model="form.phone"
-            type="tel"
-            autocomplete="tel"
-            inputmode="tel"
-            icon="i-lucide-phone"
-            placeholder="(11) 91234-5678"
-            class="w-full"
-            @input="onPhoneInput"
-          />
-          <template #help>
-            O telefone só será usado para alertas por SMS ou WhatsApp, quando você ativar.
-          </template>
-        </UFormField>
-
-        <div class="flex gap-2">
-          <UButton
-            :class="prefs.dirty.value ? 'btn-glow' : ''"
-            :loading="prefs.saving.value"
-            :disabled="!prefs.dirty.value"
-            label="Salvar alterações"
-            @click="prefs.save()"
-          />
-          <UButton
-            color="neutral"
-            variant="ghost"
-            label="Descartar"
-            :disabled="!prefs.dirty.value || prefs.saving.value"
-            @click="discard"
-          />
+          <UFormField
+            label="Telefone celular"
+            size="lg"
+            help="O telefone só será usado para alertas por SMS ou WhatsApp, quando você ativar."
+            :error="fieldErrors.phone ?? undefined"
+          >
+            <UInput
+              v-model="form.phone"
+              type="tel"
+              autocomplete="tel"
+              inputmode="tel"
+              icon="i-lucide-phone"
+              placeholder="(11) 91234-5678"
+              class="w-full"
+              @input="onPhoneInput"
+            />
+          </UFormField>
         </div>
+      </section>
 
-        <div class="flex flex-col gap-2 border-t border-[var(--cf-border-muted)] pt-3">
-          <h3 class="font-medium text-highlighted">
+      <!-- Acessibilidade -->
+      <section
+        class="cf-hairline-b cf-section-tight grid gap-8 lg:grid-cols-[minmax(0,260px)_minmax(0,1fr)] lg:gap-16"
+        aria-labelledby="prefs-a11y"
+      >
+        <div>
+          <h2
+            id="prefs-a11y"
+            class="cf-h2"
+          >
             Acessibilidade
-          </h3>
+          </h2>
+          <p class="mt-3 text-[14px] text-muted">
+            Ajustes de leitura do gráfico.
+          </p>
+        </div>
+
+        <div class="max-w-[460px]">
           <USwitch
             v-model="form.filledCandles"
             label="Velas de alta preenchidas"
-            description="Preenche o corpo das velas de alta (padrão: vazadas, estilo vidro)"
+            description="O padrão desenha a alta vazada, com contorno gelo. Preencher o corpo aumenta a área de cor."
           />
         </div>
       </section>
 
       <!-- Notificações -->
       <section
-        class="glass flex flex-col p-6"
-        aria-label="Notificações"
+        class="cf-section-tight grid gap-8 lg:grid-cols-[minmax(0,260px)_minmax(0,1fr)] lg:gap-16"
+        aria-labelledby="prefs-notificacoes"
       >
-        <div class="flex items-center justify-between gap-3 border-b border-default pb-3.5">
-          <span class="flex items-center gap-2.5">
-            <UIcon
-              name="i-lucide-bell"
-              class="size-[18px] text-primary"
-            />
-            <span>
-              <span class="block text-[15px] font-bold text-highlighted">Notificações</span>
-              <span class="text-[12.5px] text-muted">Resumo diário com os tópicos que você escolher</span>
-            </span>
-          </span>
-          <USwitch
-            v-model="form.notificationsEnabled"
-            aria-label="Ativar notificações"
-          />
-        </div>
-
-        <fieldset
-          class="pt-1"
-          :disabled="!form.notificationsEnabled"
-        >
-          <legend class="sr-only">
-            Tópicos do resumo diário
-          </legend>
-          <div
-            v-for="topic in topics"
-            :key="topic.key"
-            class="border-b border-[var(--cf-border-muted)] py-3 transition-opacity"
-            :class="form.notificationsEnabled ? '' : 'opacity-50'"
+        <div>
+          <h2
+            id="prefs-notificacoes"
+            class="cf-h2"
           >
-            <UCheckbox
-              v-model="form.topics[topic.key]"
-              :label="topic.label"
-              :description="topic.desc"
-              :disabled="!form.notificationsEnabled"
-            />
-          </div>
-        </fieldset>
-
-        <div class="mt-auto flex flex-col gap-2.5 pt-4">
-          <h3 class="font-medium text-highlighted">
-            Canal de envio
-          </h3>
-          <div class="flex flex-wrap gap-2">
-            <span class="inline-flex h-8 items-center gap-1.5 rounded-full border border-[var(--cf-electric)] bg-primary-soft px-3 text-[12px] text-ai">
-              <UIcon
-                name="i-lucide-mail"
-                class="size-3.5"
-              />E-mail
-            </span>
-            <span
-              class="inline-flex h-8 items-center gap-1.5 rounded-full border border-default px-3 text-[12px] text-muted opacity-70"
-              aria-disabled="true"
-            >
-              <UIcon
-                name="i-lucide-smartphone"
-                class="size-3.5"
-              />SMS
-              <span class="eyebrow rounded-full border border-default px-1.5 py-px text-[10px]">Em breve</span>
-            </span>
-            <span
-              class="inline-flex h-8 items-center gap-1.5 rounded-full border border-default px-3 text-[12px] text-muted opacity-70"
-              aria-disabled="true"
-            >
-              <UIcon
-                name="i-lucide-message-circle"
-                class="size-3.5"
-              />WhatsApp
-              <span class="eyebrow rounded-full border border-default px-1.5 py-px text-[10px]">Em breve</span>
-            </span>
-          </div>
-          <p class="text-[12.5px] text-muted">
-            Os alertas seguem o ritmo do pipeline (1x/dia). Nada é tempo real.
+            Notificações
+          </h2>
+          <p class="mt-3 text-[14px] text-muted">
+            Resumo diário com os tópicos que você escolher. Os alertas seguem o ritmo
+            do pipeline (1x/dia). Nada é tempo real.
           </p>
         </div>
+
+        <div class="max-w-[560px]">
+          <USwitch
+            v-model="form.notificationsEnabled"
+            label="Receber o resumo diário"
+          />
+
+          <fieldset
+            class="mt-7"
+            :disabled="!form.notificationsEnabled"
+            :class="form.notificationsEnabled ? '' : 'opacity-50'"
+          >
+            <legend class="eyebrow text-dimmed">
+              Tópicos do resumo
+            </legend>
+            <div
+              v-for="topic in topics"
+              :key="topic.key"
+              class="cf-rule py-4"
+            >
+              <UCheckbox
+                v-model="form.topics[topic.key]"
+                :label="topic.label"
+                :description="topic.desc"
+                :disabled="!form.notificationsEnabled"
+              />
+            </div>
+          </fieldset>
+
+          <div class="mt-8">
+            <h3 class="eyebrow text-dimmed">
+              Canal de envio
+            </h3>
+            <div class="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2">
+              <span class="inline-flex items-center gap-2 text-[14px] text-ai">
+                <UIcon
+                  name="i-lucide-mail"
+                  class="size-4"
+                  aria-hidden="true"
+                />E-mail
+              </span>
+              <span
+                class="inline-flex items-center gap-2 text-[14px] text-dimmed"
+                aria-disabled="true"
+              >
+                <UIcon
+                  name="i-lucide-smartphone"
+                  class="size-4"
+                  aria-hidden="true"
+                />SMS
+                <span class="num text-[11px]">Em breve</span>
+              </span>
+              <span
+                class="inline-flex items-center gap-2 text-[14px] text-dimmed"
+                aria-disabled="true"
+              >
+                <UIcon
+                  name="i-lucide-message-circle"
+                  class="size-4"
+                  aria-hidden="true"
+                />WhatsApp
+                <span class="num text-[11px]">Em breve</span>
+              </span>
+            </div>
+          </div>
+        </div>
       </section>
-    </div>
+
+      <!-- Ações -->
+      <div class="cf-hairline-t flex flex-wrap items-center gap-x-4 gap-y-3 pt-6">
+        <UButton
+          size="lg"
+          :loading="prefs.saving.value"
+          :disabled="!prefs.dirty.value"
+          label="Salvar alterações"
+          @click="prefs.save()"
+        />
+        <UButton
+          color="neutral"
+          variant="ghost"
+          size="lg"
+          label="Descartar"
+          :disabled="!prefs.dirty.value || prefs.saving.value"
+          @click="prefs.refresh()"
+        />
+        <p
+          class="text-[13px] text-dimmed"
+          role="status"
+        >
+          {{ prefs.dirty.value ? 'Há alterações não salvas.' : 'Tudo salvo.' }}
+        </p>
+      </div>
+    </template>
   </div>
 </template>

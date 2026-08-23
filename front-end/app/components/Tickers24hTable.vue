@@ -4,17 +4,27 @@ import { symbolName } from '~/utils/constants'
 import { sortTickers, tickerHasData, type SortDir, type TickerSortKey } from '~/utils/tickers'
 import { EM_DASH, arrowOf, formatChange, formatCompact, formatPercent, formatPrice, toneOf } from '~/utils/format'
 
+/**
+ * Mercado — resumo 24h (Design.md §12.1): mesma linguagem da tabela de cenários.
+ * Full-bleed, hairlines, wash horizontal na linha ativa; nenhum card externo.
+ * Nulls sempre por último, independente da direção da ordenação.
+ */
 const props = defineProps<{
   rows: readonly Ticker24h[]
   selectedSymbol: string | null
   loading: boolean
 }>()
-const emit = defineEmits<{ (e: 'select', symbol: string): void }>()
 
-interface Col { key: TickerSortKey, label: string, align?: 'left' | 'right', fmt: (t: Ticker24h) => string, tone?: (t: Ticker24h) => 'up' | 'down' | 'flat' | null, sticky?: boolean }
+interface Col {
+  key: TickerSortKey
+  label: string
+  align?: 'start' | 'end'
+  fmt: (t: Ticker24h) => string
+  tone?: (t: Ticker24h) => 'up' | 'down' | 'flat' | null
+}
 
 const COLUMNS: Col[] = [
-  { key: 'symbol', label: 'Ativo', align: 'left', fmt: t => t.symbol, sticky: true },
+  { key: 'symbol', label: 'Ativo', align: 'start', fmt: t => t.symbol },
   { key: 'last_price', label: 'Último', fmt: t => formatPrice(t.last_price) },
   { key: 'price_change', label: 'Var. 24h', fmt: t => formatChange(t.price_change, t.last_price), tone: t => toneOf(t.price_change) },
   { key: 'price_change_percent', label: 'Var. %', fmt: t => (t.price_change_percent == null ? EM_DASH : `${arrowOf(t.price_change_percent)} ${formatPercent(t.price_change_percent)}`.trim()), tone: t => toneOf(t.price_change_percent) },
@@ -31,7 +41,6 @@ const COLUMNS: Col[] = [
 
 const sortKey = ref<TickerSortKey>('quote_volume')
 const sortDir = ref<SortDir>('desc')
-
 const sorted = computed(() => sortTickers(props.rows, sortKey.value, sortDir.value))
 
 function toggleSort(key: TickerSortKey) {
@@ -56,28 +65,32 @@ defineExpose({ sortKey, sortDir })
 
 <template>
   <div class="overflow-x-auto">
-    <table class="w-full min-w-[1080px] border-collapse text-[13px]">
+    <table class="w-full min-w-[1040px] border-collapse text-[13.5px]">
+      <caption class="sr-only">
+        Resumo 24h por ativo. Cabeçalhos ordenáveis; dados ausentes aparecem como travessão e vão para o fim da lista.
+      </caption>
       <thead>
-        <tr class="border-b border-default">
+        <tr class="cf-hairline-b">
           <th
             v-for="col in COLUMNS"
             :key="col.key"
             scope="col"
             :aria-sort="ariaSort(col.key)"
-            class="eyebrow whitespace-nowrap px-3 py-2.5 text-dimmed"
-            :class="[col.align === 'left' ? 'text-left' : 'text-right', col.sticky ? 'sticky left-0 z-10 bg-elevated' : '']"
+            class="py-3 pe-4 whitespace-nowrap"
+            :class="col.align === 'start' ? 'text-start' : 'text-end'"
           >
             <button
               type="button"
-              class="inline-flex items-center gap-1 rounded-sm hover:text-default"
-              :class="sortKey === col.key ? 'text-highlighted' : ''"
+              class="eyebrow inline-flex min-h-9 items-center gap-1.5 rounded-sm"
+              :class="sortKey === col.key ? 'text-hi' : 'text-dimmed hover:text-muted'"
               @click="toggleSort(col.key)"
             >
               {{ col.label }}
               <UIcon
                 v-if="sortKey === col.key"
-                :name="sortDir === 'desc' ? 'i-lucide-chevron-down' : 'i-lucide-chevron-up'"
+                :name="sortDir === 'desc' ? 'i-lucide-arrow-down' : 'i-lucide-arrow-up'"
                 class="size-3"
+                aria-hidden="true"
               />
             </button>
           </th>
@@ -88,14 +101,14 @@ defineExpose({ sortKey, sortDir })
           <tr
             v-for="i in 8"
             :key="i"
-            class="border-b border-muted"
+            class="cf-rule"
           >
             <td
               v-for="col in COLUMNS"
               :key="col.key"
-              class="px-3 py-2.5"
+              class="py-3.5 pe-4"
             >
-              <USkeleton class="ml-auto h-3 w-16" />
+              <USkeleton class="h-3 w-16" />
             </td>
           </tr>
         </template>
@@ -103,39 +116,33 @@ defineExpose({ sortKey, sortDir })
           v-for="t in sorted"
           v-else
           :key="t.symbol"
-          tabindex="0"
-          class="cursor-pointer border-b border-muted outline-none hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
-          :class="t.symbol === props.selectedSymbol ? 'bg-primary-soft' : ''"
-          :aria-selected="t.symbol === props.selectedSymbol"
-          @click="emit('select', t.symbol)"
-          @keydown.enter.prevent="emit('select', t.symbol)"
-          @keydown.space.prevent="emit('select', t.symbol)"
+          class="cf-rule transition-colors hover:cf-row-hover focus-within:cf-row-hover"
+          :class="t.symbol === props.selectedSymbol ? 'cf-row-hover' : ''"
         >
           <td
             v-for="col in COLUMNS"
             :key="col.key"
-            class="whitespace-nowrap px-3 py-2.5"
+            class="py-3.5 pe-4 whitespace-nowrap"
             :class="[
-              col.align === 'left' ? 'text-left' : 'num text-right',
-              col.sticky ? 'sticky left-0 z-10 bg-elevated' : '',
+              col.align === 'start' ? 'text-start' : 'num text-end',
               col.tone ? toneClass(col.tone(t)) : '',
               !tickerHasData(t) && col.key !== 'symbol' ? 'text-dimmed' : '',
             ]"
             :title="!tickerHasData(t) && col.key !== 'symbol' ? 'Sem snapshot recente para este ativo' : undefined"
           >
             <template v-if="col.key === 'symbol'">
-              <span
-                class="num font-medium text-highlighted"
+              <NuxtLink
+                :to="{ path: '/graficos', query: { symbol: t.symbol } }"
+                class="num rounded-sm text-[15px] text-hi"
                 translate="no"
-              >{{ t.symbol }}</span>
+              >
+                {{ t.symbol }}
+                <span class="sr-only">— abrir {{ symbolName(t.symbol) ?? t.symbol }} nos gráficos</span>
+              </NuxtLink>
               <span
                 v-if="!tickerHasData(t)"
-                class="num ml-2 text-[11px] text-dimmed"
+                class="num ms-2 text-[11px] text-dimmed"
               >sem dados</span>
-              <span
-                v-else-if="symbolName(t.symbol)"
-                class="sr-only"
-              >{{ symbolName(t.symbol) }}</span>
             </template>
             <template v-else>
               {{ col.fmt(t) }}

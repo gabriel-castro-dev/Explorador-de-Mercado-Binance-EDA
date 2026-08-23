@@ -2,9 +2,14 @@
 import { useMediaQuery } from '@vueuse/core'
 import { symbolName } from '~/utils/constants'
 import { filterTickers, latestSnapshotAt } from '~/utils/tickers'
+import { asyncView } from '~/utils/async-state'
 import { describeError, messageOf } from '~/utils/api-errors'
 
-useHead({ title: 'Mercado · crypto forecasting' })
+/**
+ * Mercado (Design.md §12.1): tabela full-bleed com hairlines e wash na linha
+ * ativa; nenhum card externo. Ordem padrão: volume USDT decrescente, nulls no fim.
+ */
+useHead({ title: 'Mercado · CRYPTO FORECASTING' })
 
 const { symbol, tf } = useDashboardQuery()
 const tickers = useTickers24h()
@@ -15,8 +20,11 @@ const rows = computed(() => filterTickers(tickers.data.value, query.value, symbo
 const snapshotAt = computed(() => latestSnapshotAt(tickers.data.value))
 const fresh = useFreshness('tickers', snapshotAt, () => tickers.status.value)
 
+const view = computed(() => asyncView(tickers.status.value, tickers.data.value.length > 0))
+
 const refreshing = ref(false)
 async function refresh() {
+  if (refreshing.value) return
   refreshing.value = true
   try {
     await tickers.refresh()
@@ -25,26 +33,22 @@ async function refresh() {
   }
 }
 
-function openSymbol(s: string) {
-  return navigateTo({ path: '/graficos', query: { symbol: s, tf: tf.value } })
-}
-
 const errorDetail = computed(() => describeError(tickers.error.value))
 const errorMessage = computed(() => messageOf(tickers.error.value))
 </script>
 
 <template>
-  <div class="space-y-4">
-    <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+  <div class="cf-gutter cf-shell pt-10 pb-16 md:pt-12 md:pb-20">
+    <div class="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
       <div>
-        <h1 class="text-[20px] font-semibold text-highlighted">
-          Mercado · resumo 24h
+        <h1 class="cf-h1 uppercase">
+          Mercado
         </h1>
-        <p class="mt-0.5 text-[13px] text-muted">
-          Top 20 pares USDT por volume. Clique em um ativo para abri-lo nos gráficos.
+        <p class="mt-2.5 text-[15px] text-muted">
+          Resumo 24h dos top 20 pares USDT por volume. Abra um ativo para ver o gráfico.
         </p>
       </div>
-      <div class="flex flex-wrap items-center gap-2">
+      <div class="flex flex-wrap items-center gap-x-5 gap-y-3">
         <UInput
           v-model="query"
           type="search"
@@ -63,61 +67,52 @@ const errorMessage = computed(() => messageOf(tickers.error.value))
           icon="i-lucide-refresh-cw"
           :loading="refreshing"
           :label="refreshing ? 'Atualizando…' : 'Atualizar'"
+          aria-label="Atualizar dados"
           @click="refresh"
         />
       </div>
     </div>
 
-    <UCard
-      v-if="tickers.status.value === 'error' && !tickers.data.value.length"
-      class="rounded-lg"
-    >
+    <div class="mt-10">
       <ErrorState
+        v-if="view === 'error'"
         title="Não foi possível carregar o mercado"
         :description="errorMessage"
         :detail="errorDetail"
         :retrying="refreshing"
         @retry="refresh"
       />
-    </UCard>
 
-    <UCard
-      v-else-if="tickers.status.value === 'success' && !tickers.data.value.length"
-      class="rounded-lg"
-    >
       <EmptyState
+        v-else-if="view === 'empty'"
         title="Nenhum snapshot disponível"
-        description="Tente novamente em alguns minutos."
+        description="O resumo 24h atualiza de hora em hora. Tente novamente em alguns minutos."
         icon="i-lucide-table-2"
         :actions="[{ label: 'Tentar novamente', color: 'neutral', variant: 'outline', onClick: refresh }]"
       />
-    </UCard>
 
-    <MarketListMobile
-      v-else-if="isMobile"
-      :rows="rows"
-      :selected-symbol="symbol"
-      :loading="tickers.status.value === 'pending'"
-      :tf="tf"
-    />
-
-    <UCard
-      v-else
-      class="rounded-lg"
-      :ui="{ body: 'p-0 sm:p-0', footer: 'px-3 py-2 sm:px-3' }"
-    >
-      <Tickers24hTable
+      <MarketListMobile
+        v-else-if="isMobile"
         :rows="rows"
         :selected-symbol="symbol"
         :loading="tickers.status.value === 'pending'"
-        @select="openSymbol"
+        :tf="tf"
       />
-      <template #footer>
-        <div class="num flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[11px] text-dimmed">
-          <span>{{ rows.length }} ativos · ordenado por volume (USDT) desc · cabeçalhos ordenáveis (Enter/Espaço)</span>
-          <span>▲ alta · ▼ baixa · sem seta = sem variação · — = sem dados</span>
-        </div>
-      </template>
-    </UCard>
+
+      <Tickers24hTable
+        v-else
+        :rows="rows"
+        :selected-symbol="symbol"
+        :loading="tickers.status.value === 'pending'"
+      />
+    </div>
+
+    <p
+      v-if="view === 'ready'"
+      class="cf-hairline-t num mt-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-1 pt-4 text-[11px] text-dimmed"
+    >
+      <span>{{ rows.length }} ativos · ordenado por volume (USDT) decrescente</span>
+      <span>▲ alta · ▼ baixa · +0,00 % sem variação · — sem dados</span>
+    </p>
   </div>
 </template>
