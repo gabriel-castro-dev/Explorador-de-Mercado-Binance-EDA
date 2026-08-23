@@ -4,6 +4,30 @@
  */
 
 export interface paths {
+    "/api/v1/auth/firebase-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue Firebase Token
+         * @description Emite um custom token do Firebase para o usuário autenticado.
+         *
+         *     O usuário é criado no Firebase (sem senha) caso ainda não exista, com o
+         *     mesmo id do Supabase. Troque o token por um `idToken` chamando
+         *     `accounts:signInWithCustomToken?key=<web api key>`.
+         */
+        post: operations["issue_firebase_token_api_v1_auth_firebase_token_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/features/{timeframe}": {
         parameters: {
             query?: never;
@@ -61,6 +85,10 @@ export interface paths {
          *     Um usuário que nunca salvou nada recebe os valores padrão (200, não 404),
          *     para o app abrir sem tratamento especial na primeira visita. O e-mail é
          *     somente leitura e vem do token do Supabase, não do Firestore.
+         *
+         *     Esta é a primeira rota que o app chama, então é aqui que a conta espelho
+         *     no Firebase é criada (sem senha, com o mesmo id do Supabase) — o cadastro
+         *     continua sendo um só, feito no Supabase.
          */
         get: operations["get_preferences_api_v1_preferences_get"];
         /**
@@ -212,6 +240,22 @@ export interface components {
             volume_change_24h?: number | null;
             /** Volume Sma 20 */
             volume_sma_20?: number | null;
+        };
+        /**
+         * FirebaseTokenOut
+         * @description A short-lived Firebase custom token for the signed-in user.
+         *
+         *     Exchange it for an ID token at the Identity Toolkit:
+         *     ``POST accounts:signInWithCustomToken?key=<web api key>``.
+         */
+        FirebaseTokenOut: {
+            /** Custom Token */
+            custom_token: string;
+            /**
+             * Expires In
+             * @default 3600
+             */
+            expires_in: number;
         };
         /**
          * HealthOut
@@ -419,6 +463,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    issue_firebase_token_api_v1_auth_firebase_token_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FirebaseTokenOut"];
+                };
+            };
+        };
+    };
     list_features_api_v1_features__timeframe__get: {
         parameters: {
             query: {

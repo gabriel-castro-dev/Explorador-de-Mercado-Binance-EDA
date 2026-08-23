@@ -29,7 +29,7 @@ Camadas (Clean Architecture / 3-Tier):
 
 ```
 main.py        → app FastAPI (create_app: CORS, routers, /health público)
-controllers/   → rotas /api/v1 (symbols, klines/{tf}, features/{tf}, tickers/24h, preferences) + deps.py
+controllers/   → rotas /api/v1 (symbols, klines/{tf}, features/{tf}, tickers/24h, preferences, auth) + deps.py
                  (HTTPBearer → get_claims → client Supabase por request com JWT do usuário → RLS)
 auth/          → verificação local de JWT do Supabase Auth (JWKS ES256/RS256, fallback HS256 opcional)
 schemas/       → response models Pydantic (extra="ignore", indicadores nullable)
@@ -37,6 +37,7 @@ core/          → Timeframe (vocabulário único 15m/1h/1d, alias 24h, nomes de
 clients/       → conexões externas (BinanceClient com call_with_retry + erros tipados, Supabase)
   └─ firebase/     → Firebase Admin SDK / Firestore (preferências do usuário; init lazy e idempotente)
 services/      → transformação dos dados da Binance em DataFrames tipados (normalizador único de klines)
+                 + firebase_identity.py (conta espelho no Firebase: uid = sub do Supabase, sem senha; custom token)
 ingestion/     → jobs de ingestão: fetch no service + upsert no repository (erros propagam)
 repositories/  → persistência pura no Supabase (klines, tickers, features, retenção)
                  + preferences_repository.py (Firestore: 1 doc por usuário, id = claims.sub)

@@ -330,6 +330,38 @@ Documentação interativa completa: `/docs` (Swagger) e `/redoc` com a API rodan
 | GET | `/api/v1/tickers/24h` | Snapshot 24h mais recente por ativo | query: `symbol` (opcional) |
 | GET | `/api/v1/preferences` | Preferências do usuário autenticado (padrões se nunca salvou) | — |
 | PUT | `/api/v1/preferences` | Salva as preferências (idempotente) | corpo: `display_name`, `phone` (E.164), `notifications`, `chart` |
+| POST | `/api/v1/auth/firebase-token` | Custom token do Firebase para o usuário autenticado | — |
+
+### Identidade: um cadastro, dois sistemas
+
+O usuário se cadastra **uma vez**, no Supabase Auth — que continua sendo a única
+autoridade sobre a senha. A conta espelho no Firebase é criada automaticamente na
+primeira requisição autenticada (`GET /api/v1/preferences`), **sem senha** e com o
+mesmo id do Supabase (`sub` → `uid`). Login por senha direto no Firebase falha por
+construção, então as credenciais nunca divergem entre os dois sistemas.
+
+Quando o cliente precisar de uma sessão Firebase (por exemplo, para falar direto com
+o Firestore no futuro), o fluxo é:
+
+```
+front → POST /api/v1/auth/firebase-token   (com o Bearer do Supabase)
+     ← { "custom_token": "...", "expires_in": 3600 }
+front → POST identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=<apiKey do app Web>
+     ← { "idToken": "...", ... }
+```
+
+A `apiKey` do app Web é pública (vai no navegador) e **não** dá acesso a dado nenhum
+sozinha — quem autoriza é o custom token, emitido só para o dono de um JWT válido.
+
+### Regras do Firestore
+
+O `firestore.rules` nega todo acesso de cliente: só a API (Admin SDK) fala com o
+Firestore, então a autorização acontece na API. Para publicar e conferir:
+
+```bash
+firebase deploy --only firestore:rules        # publica o que está no repo
+uv run python scripts/check_firestore_rules.py  # confere publicado == repo
+```
 
 ### Obtendo um access token sem o front-end
 
