@@ -26,7 +26,7 @@ async function refresh() {
 }
 
 function openSymbol(s: string) {
-  return navigateTo({ path: '/', query: { symbol: s, tf: tf.value } })
+  return navigateTo({ path: '/graficos', query: { symbol: s, tf: tf.value } })
 }
 
 const errorDetail = computed(() => describeError(tickers.error.value))
@@ -41,7 +41,7 @@ const errorMessage = computed(() => messageOf(tickers.error.value))
           Mercado · resumo 24h
         </h1>
         <p class="mt-0.5 text-[13px] text-muted">
-          Top 20 pares USDT por volume. Clique em um ativo para abri-lo no dashboard.
+          Top 20 pares USDT por volume. Clique em um ativo para abri-lo nos gráficos.
         </p>
       </div>
       <div class="flex flex-wrap items-center gap-2">

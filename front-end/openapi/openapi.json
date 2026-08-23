@@ -400,6 +400,36 @@
         ]
       }
     },
+    "/api/v1/insights/daily-reading": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Get Daily Reading",
+        "description": "Leitura do dia gerada pelo modelo de linguagem (cache global por dia UTC).\n\nO texto resume apenas números calculados no servidor (snapshot 24h,\nvolumes, ATR relativo) — nunca dados inventados. A primeira requisição\nautenticada do dia gera e grava; as demais leem o cache. Sem cache e sem\ngeração possível, responde 503 e o front mostra o estado vazio.",
+        "operationId": "get_daily_reading_api_v1_insights_daily_reading_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyReadingOut"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Leitura indisponível."
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/auth/firebase-token": {
       "post": {
         "tags": [
@@ -456,13 +486,48 @@
           "hollow_up_candles": {
             "type": "boolean",
             "title": "Hollow Up Candles",
-            "default": false
+            "default": true
           }
         },
         "additionalProperties": false,
         "type": "object",
         "title": "ChartSettings",
         "description": "Chart rendering preferences (accessibility)."
+      },
+      "DailyReadingOut": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "disclaimer": {
+            "type": "string",
+            "title": "Disclaimer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "generated_at",
+          "model",
+          "text",
+          "disclaimer"
+        ],
+        "title": "DailyReadingOut",
+        "description": "One generated market reading, cached globally per UTC day.\n\nAttributes:\n    date: UTC day the reading refers to (``YYYY-MM-DD``).\n    generated_at: When the text was generated.\n    model: Model slug that actually produced the text (post-fallback).\n    text: The reading itself, in pt-BR, grounded on the day's numbers.\n    disclaimer: Fixed sentence every forecast surface must show."
       },
       "FeatureRowOut": {
         "properties": {
@@ -1294,6 +1359,10 @@
     {
       "name": "preferences",
       "description": "Preferencias do usuario autenticado (Firestore): dados pessoais, notificacoes e acessibilidade."
+    },
+    {
+      "name": "insights",
+      "description": "Textos gerados por LLM (OpenCode Zen com fallback para OpenRouter) sobre os numeros do dia. Cache global por dia UTC; nunca inventa dados."
     }
   ]
 }

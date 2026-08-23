@@ -1,4 +1,4 @@
-from app.controllers import auth, features, klines, preferences, symbols, tickers
+from app.controllers import auth, features, insights, klines, preferences, symbols, tickers
 
 routers = [
     symbols.router,
@@ -6,6 +6,7 @@ routers = [
     features.router,
     tickers.router,
     preferences.router,
+    insights.router,
     auth.router,
 ]
 

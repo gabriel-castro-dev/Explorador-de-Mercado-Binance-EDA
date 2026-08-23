@@ -2,6 +2,7 @@
 import type { TableColumn } from '@nuxt/ui'
 import type { FeatureRow, Kline, Timeframe } from '~/types/api'
 import type { IndicatorPrefs } from '~/composables/useIndicatorPrefs'
+import type { ScenarioSet } from '~/utils/chart-mapping'
 import { LIMIT_BY_TF, TIMEFRAME_META, symbolName } from '~/utils/constants'
 import { describeError, messageOf } from '~/utils/api-errors'
 import { EM_DASH, formatNumber, formatPrice, formatUtcShort } from '~/utils/format'
@@ -19,6 +20,8 @@ const props = defineProps<{
   featuresError: unknown
   prefs: IndicatorPrefs
   hollowUp: boolean
+  scenarios?: ScenarioSet | null
+  showScenarios?: boolean
   stale: boolean
   hoursLate: number
   loadingOlder: boolean
@@ -85,9 +88,10 @@ const errorMessage = computed(() => messageOf(props.klinesError))
 </script>
 
 <template>
+  <!-- Moldura de vidro; a área do canvas é sólida (vidro atrás de canvas é proibido — Design.md §4). -->
   <UCard
-    class="flex h-full min-h-[520px] flex-col overflow-hidden rounded-lg"
-    :ui="{ root: 'flex flex-col', body: 'relative flex-1 p-0 sm:p-0 min-h-0', footer: 'px-3 py-2 sm:px-3' }"
+    class="flex h-full min-h-[520px] flex-col overflow-hidden"
+    :ui="{ root: 'flex flex-col', body: 'relative flex-1 p-0 sm:p-0 min-h-0 bg-solid-surface', footer: 'px-3 py-2 sm:px-3' }"
   >
     <div class="relative h-full min-h-[440px]">
       <!-- Alerta de dados velhos (o gráfico continua utilizável) -->
@@ -158,6 +162,8 @@ const errorMessage = computed(() => messageOf(props.klinesError))
             :features="props.features"
             :prefs="props.prefs"
             :hollow-up="props.hollowUp"
+            :scenarios="props.scenarios"
+            :show-scenarios="props.showScenarios"
             :compact="props.compact"
             @reach-left-edge="canLoadOlder && emit('load-older')"
           />

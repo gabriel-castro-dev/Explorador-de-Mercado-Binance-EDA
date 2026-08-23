@@ -7,6 +7,10 @@ export type Ticker24h = components['schemas']['Ticker24hOut']
 export type SymbolRow = components['schemas']['SymbolOut']
 export type Health = components['schemas']['HealthOut']
 export type Timeframe = components['schemas']['Timeframe']
+export type DailyReading = components['schemas']['DailyReadingOut']
+export type PreferencesIn = components['schemas']['PreferencesIn']
+export type PreferencesOut = components['schemas']['PreferencesOut']
+export type NotificationChannel = NonNullable<PreferencesIn['notifications']>['channel']
 
 /** Chaves numéricas (indicadores) de uma linha de features — todas nullable (warm-up). */
 export type FeatureKey = Exclude<keyof FeatureRow, 'symbol' | 'timestamp'>

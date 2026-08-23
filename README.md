@@ -4,7 +4,7 @@
 
 Plataforma ponta a ponta (End-to-End) para coleta automatizada, armazenamento persistente, previsão de preços com Machine Learning e exibição de indicadores do mercado de criptomoedas através de dashboards interativos.
 
-**Evolução do Projeto:** O sistema nasceu como um pipeline local de Análise Exploratória de Dados (EDA) focado em logs de terminal e planilhas CSV. A arquitetura atual transforma esse escopo inicial em um **monólito modular em monorepo**: jobs de coleta agendados, pipeline de feature engineering, uma API REST (em construção) e automação via CI/CD — responsabilidades separadas por camadas e contêineres, sem a complexidade operacional de microsserviços.
+**Evolução do Projeto:** O sistema nasceu como um pipeline local de Análise Exploratória de Dados (EDA) focado em logs de terminal e planilhas CSV. A arquitetura atual transforma esse escopo inicial em um **monólito modular em monorepo**: jobs de coleta agendados, pipeline de feature engineering, uma API REST autenticada, um dashboard Nuxt e automação via CI/CD — responsabilidades separadas por camadas e contêineres, sem a complexidade operacional de microsserviços.
 
 ---
 
@@ -19,19 +19,29 @@ Binance API
 Jobs de Coleta (GitHub Actions: 5min / 1h / diário)
 │
 ▼
-Supabase (PostgreSQL + RLS)
+Supabase (PostgreSQL + RLS)  ◄── dados de mercado, features e identidade
 │
 ├──────────────────────────────┐
 ▼                              ▼
 FastAPI (REST API)           Machine Learning (Treinamento/Métricas)
 │                              │
-└──────────────┬───────────────┘
+│  ▲                           │
+│  └── Firestore ──────────────┘   ◄── preferências do usuário
+│      (Firebase Admin SDK)
+│
+└──────────────┬───────────────────┘
 ▼
-Nuxt Dashboard (VM Hostinger ou Vercel)
+Nuxt Dashboard (Vercel)
 │
 ▼
 Usuário
 ```
+
+**Duas fontes de dados, papéis distintos:** o **Supabase** guarda séries temporais,
+indicadores e a identidade (é ele quem autentica); o **Firestore** guarda apenas as
+preferências de cada usuário. A API é a única que fala com o Firestore — o Admin SDK
+ignora as security rules, então as regras publicadas negam todo acesso de cliente e a
+autorização acontece na API, sempre a partir do token validado do Supabase.
 
 ### Divisão de Responsabilidades (Monorepo)
 
@@ -40,9 +50,10 @@ Usuário
 | **Jobs de Coleta** | Python (`uv`) + Docker | Ingestão agendada (orderbook a cada 5min, ticker 24h a cada hora, klines diário) sem duplicidade no banco. | GitHub Actions | Em produção |
 | **Feature Engineering** | Python (pandas, TA-Lib) + Docker | Cálculo diário de indicadores técnicos por timeframe + política de retenção. | GitHub Actions | Em produção |
 | **Banco de Dados** | Supabase | PostgreSQL persistente com RLS para séries históricas, indicadores, previsões e versionamento de modelos. | Supabase Cloud | Em produção |
-| **Back-end (API)** | FastAPI | Endpoints REST (klines, features, symbols, tickers 24h), autenticação via Supabase Auth (JWT/JWKS + RLS), Swagger. | VM | Em desenvolvimento (v1 pronta; deploy pendente) |
+| **Preferências do Usuário** | Firestore (Firebase Admin SDK) | Documento por usuário (id = `sub` do Supabase) com dados pessoais, notificações e acessibilidade. Regras negam acesso de cliente: só a API escreve. | Firebase (Spark) | Em produção |
+| **Back-end (API)** | FastAPI | Endpoints REST (klines, features, symbols, tickers 24h, preferences), autenticação via Supabase Auth (JWT/JWKS + RLS) e ponte de identidade com o Firebase, Swagger. | Railway (container do GHCR) | Em desenvolvimento (v1 pronta; deploy em configuração) |
 | **Machine Learning** | Scikit-Learn / Prophet (a definir) | Scripts de treinamento e geração de projeções diárias de preços. | GitHub Actions / Runner | Planejado |
-| **Front-end** | Vue 3 + Nuxt 4 + Nuxt UI (Tailwind v4) + Lightweight Charts | Dashboard SPA: login/cadastro (Supabase Auth), gráfico de candles com indicadores, resumo 24h e tabela de mercado; consome a API com Bearer token. | Estático — Caddy na VM Hostinger ou Vercel (a definir) | Em desenvolvimento (v1 funcional; deploy pendente) |
+| **Front-end** | Vue 3 + Nuxt 4 + Nuxt UI (Tailwind v4) + Lightweight Charts | Dashboard SPA: login/cadastro (Supabase Auth), gráfico de candles com indicadores, resumo 24h e tabela de mercado; consome a API com Bearer token. | Vercel (estático) | Em desenvolvimento (v1 funcional; deploy pendente) |
 
 ---
 
@@ -51,9 +62,10 @@ Usuário
 * **Linguagem Base:** Python 3.13+
 * **Gerenciador de Pacotes Python:** `uv` (Fast Python package installer & resolver)
 * **Validação de Ambiente:** Pydantic Settings (carregamento lazy via `get_settings()` — imports sem side effects)
-* **Arquitetura do Código (Back-end):** Clean Architecture / camadas (`clients`, `services`, `ingestion`, `repositories`, `feature_engineering`; `controllers` chegam com a API)
+* **Arquitetura do Código (Back-end):** Clean Architecture / camadas (`clients`, `services`, `ingestion`, `repositories`, `schemas`, `auth`, `core`, `controllers`, `feature_engineering`)
 * **Front-end:** Vue 3 + Nuxt 4 (SPA estática, `ssr: false`), Nuxt UI v4 / Tailwind v4, TradingView Lightweight Charts v5, `@nuxtjs/supabase`, `openapi-fetch` com tipos gerados do OpenAPI (`pnpm api:types`), Vitest + ESLint + vue-tsc
-* **Autenticação:** Supabase Auth no front (supabase-js gerencia a sessão) → `Authorization: Bearer` na API → JWT validado via JWKS → RLS no banco
+* **Autenticação:** Supabase Auth no front (supabase-js gerencia a sessão) → `Authorization: Bearer` na API → JWT validado localmente via JWKS → RLS no banco. A conta espelho no Firebase é criada a partir desse mesmo token, **sem senha** — um cadastro só, e o Supabase segue como autoridade única de credencial
+* **Persistência de preferências:** Firestore via Firebase Admin SDK, um documento por usuário (`user_preferences/{sub}`), com `firestore.rules` deny-all e conferência de drift por script
 * **Design Patterns:** Retry Pattern centralizado (`call_with_retry` com erros tipados) e Injeção de Dependências (seams para testes offline e para o `Depends()` do FastAPI)
 * **Qualidade:** `pytest` (suíte 100% offline, sem `.env`) + `ruff` (lint e format) no CI
 
@@ -71,10 +83,11 @@ Usuário
 * **Predição de Séries Temporais:** Modelos estatísticos/ML atualizados periodicamente utilizando todo o histórico de dados limpos. *(planejado)*
 * **Versionamento:** Rastreabilidade completa de métricas de performance (MAE, RMSE) por versão de modelo gerado. *(planejado)*
 
-### Entrega de Dados (API REST — em construção)
-* **Endpoints REST:** Rotas para histórico de preços, indicadores e previsões futuras.
-* **Segurança:** RLS ativo em todas as tabelas (leitura só para usuários autenticados; escrita restrita aos jobs via service role).
-* **Documentação Viva:** Swagger e OpenAPI gerados dinamicamente para consumo facilitado.
+### Entrega de Dados (API REST)
+* **Endpoints REST:** Histórico de preços, indicadores, ativos rastreados, snapshot 24h e preferências do usuário. Previsões chegam com o marco de ML.
+* **Segurança:** RLS ativo em todas as tabelas (leitura só para autenticados; escrita restrita aos jobs via service role). A API roda com a publishable key — nunca a service role. O Firestore fica atrás da API, com regras deny-all para clientes.
+* **Suíte offline:** os testes rodam sem `.env` e sem rede — inclusive as rotas que tocam Firebase, cujas credenciais são anuladas no ambiente de teste de propósito.
+* **Documentação Viva:** Swagger e OpenAPI gerados dinamicamente; o contrato é versionado e o CI do front falha se sair de sincronia.
 
 ### CI/CD
 * **CI (back-end):** `pytest` + `ruff` em todo PR/push à main; smoke build das imagens Docker quando Dockerfiles/dependências mudam.
@@ -136,6 +149,27 @@ Usuário
 
 > Coleta restrita ao **top 20 ativos por volume 24h** (exceto `ticker_24hr_history`, que coleta todos para rankear). As tabelas `features_*` armazenam indicadores calculados a partir dos dados brutos — são a entrada dos modelos de ML. Todas as tabelas têm **RLS ativo**: leitura para usuários autenticados, escrita apenas via service role dos jobs.
 
+### Preferências do Usuário (Firebase / Firestore)
+
+```
+user_preferences/{uid}          ← uid = sub do usuário no Supabase
+├─ user_id: string              ← mesmo valor do id do documento; permite where()
+├─ display_name: string | null
+├─ phone: string | null         ← E.164
+├─ notifications
+│  ├─ enabled: bool
+│  ├─ channel: "email" | "sms" | "whatsapp"
+│  └─ topics: { forecast_gap, volume_movers, volatility, model_runs }
+├─ chart: { hollow_up_candles: bool }
+├─ schema_version: int
+└─ created_at / updated_at      ← timestamps do servidor
+```
+
+> O **e-mail não é persistido aqui**: ele pertence ao Supabase Auth e é devolvido
+> pela API como campo somente-leitura, lido do próprio token. As `firestore.rules`
+> negam todo acesso de cliente — só a API (Admin SDK) lê e escreve, sempre escopada
+> pelo `sub` do token validado.
+
 ---
 
 ## Estrutura do Monorepo
@@ -149,10 +183,11 @@ crypto-forecasting-app/
 ├── back-end/
 │   ├── app/
 │   │   ├── clients/                 # Conexões externas (Binance com retry, Supabase)
-│   │   ├── services/                # Transformação dos dados da Binance em DataFrames tipados
+│   │   │   └── firebase/            # Firebase Admin SDK (init lazy, idempotente) → Firestore/Auth
+│   │   ├── services/                # Dados da Binance em DataFrames tipados + ponte de identidade Firebase
 │   │   ├── ingestion/               # Jobs de ingestão: fetch no service + upsert no repository
-│   │   ├── repositories/            # Persistência pura no Supabase
-│   │   ├── controllers/             # Rotas FastAPI (klines, features, symbols, tickers) + deps de auth/RLS
+│   │   ├── repositories/            # Persistência pura (Supabase; preferências no Firestore)
+│   │   ├── controllers/             # Rotas FastAPI (klines, features, symbols, tickers, preferences, auth) + deps
 │   │   ├── auth/                    # Verificação local de JWT do Supabase (JWKS)
 │   │   ├── schemas/                 # Response models Pydantic
 │   │   ├── core/                    # Vocabulário compartilhado (Timeframe)
@@ -166,7 +201,12 @@ crypto-forecasting-app/
 │   ├── backfill_features.py         # Backfill histórico em memória (persiste só features)
 │   ├── main.py                      # Script de verificação de conectividade com a Binance
 │   ├── config.py                    # Settings Pydantic (get_settings lazy)
+│   ├── scripts/                     # export_openapi.py · check_firestore_rules.py (drift das regras)
+│   ├── firestore.rules              # Deny-all para clientes: só a API fala com o Firestore
+│   ├── firebase.json / .firebaserc  # Deploy declarativo das regras
+│   ├── railway.json                 # Build da API no Railway (Dockerfile.api + healthcheck)
 │   ├── Dockerfile.jobs              # Imagem dos jobs de coleta
+│   ├── Dockerfile.api               # Imagem da API (publicada no GHCR)
 │   ├── Dockerfile.feature-engineering
 │   └── pyproject.toml               # Dependências via uv
 ├── docs/

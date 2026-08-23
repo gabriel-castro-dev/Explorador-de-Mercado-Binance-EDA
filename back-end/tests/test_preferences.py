@@ -214,7 +214,7 @@ class PreferencesApiTests(unittest.TestCase):
         self.assertIsNone(body["display_name"])
         self.assertFalse(body["notifications"]["enabled"])
         self.assertEqual(body["notifications"]["channel"], "email")
-        self.assertFalse(body["chart"]["hollow_up_candles"])
+        self.assertTrue(body["chart"]["hollow_up_candles"])  # vazada por padrao (design v2)
         self.assertEqual(body["email"], "user@example.com")  # do token, nao do Firestore
         repo.get.assert_called_once_with(_UID)
 

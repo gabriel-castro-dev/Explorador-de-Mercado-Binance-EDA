@@ -40,7 +40,9 @@ class ChartSettings(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    hollow_up_candles: bool = False
+    # Vazada e o padrao do design v2 (a vela de vidro da logo); a opcao de
+    # acessibilidade em Preferencias e a inversa: "Velas de alta preenchidas".
+    hollow_up_candles: bool = True
 
 
 class PreferencesIn(BaseModel):

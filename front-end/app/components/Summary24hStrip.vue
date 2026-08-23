@@ -15,7 +15,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ (e: 'retry'): void }>()
 
-interface Tile { label: string, value: string, sub?: string, tone?: 'up' | 'down' | 'flat' | null, dense?: boolean }
+interface Tile { label: string, value: string, sub?: string, tone?: 'up' | 'down' | 'flat' | 'ai' | null, dense?: boolean, chip?: string }
 
 const loading = computed(() => props.status === 'pending' && !props.ticker)
 const tiles = computed<Tile[]>(() => {
@@ -32,11 +32,13 @@ const tiles = computed<Tile[]>(() => {
     { label: 'Preço médio pond.', value: formatPrice(t.weighted_avg_price), sub: t.weighted_avg_price == null ? 'sem snapshot' : 'USDT' },
     { label: 'Bid / Ask', value: `${formatPrice(t.bid_price)} / ${formatPrice(t.ask_price)}`, sub: spread === null ? undefined : `spread ${formatNumber(spread, 3)} %`, dense: true },
     { label: 'Volume 24h', value: t.volume == null ? EM_DASH : `${formatCompact(t.volume)} ${baseAsset(t.symbol)}`, sub: `${formatCompact(t.quote_volume)} USDT · ${formatCompact(t.count)} trades` },
+    // Ciano = IA; sem número fabricado até o modelo publicar (marco 3).
+    { label: 'Previsão diária (IA)', value: EM_DASH, tone: 'ai', chip: 'IA · v0' },
   ]
 })
 
 function toneClass(tone: Tile['tone']) {
-  return tone === 'up' ? 'text-up' : tone === 'down' ? 'text-down' : tone === 'flat' ? 'text-flat' : 'text-highlighted'
+  return tone === 'up' ? 'text-up' : tone === 'down' ? 'text-down' : tone === 'flat' ? 'text-flat' : tone === 'ai' ? 'text-ai' : 'text-highlighted'
 }
 </script>
 
@@ -63,10 +65,10 @@ function toneClass(tone: Tile['tone']) {
 
     <div
       v-if="loading"
-      class="grid grid-cols-2 divide-x divide-y divide-default md:grid-cols-4 xl:grid-cols-7 xl:divide-y-0"
+      class="grid grid-cols-2 divide-x divide-y divide-default md:grid-cols-4 xl:grid-cols-8 xl:divide-y-0"
     >
       <div
-        v-for="i in 7"
+        v-for="i in 8"
         :key="i"
         class="space-y-2 px-4 py-3"
       >
@@ -100,7 +102,7 @@ function toneClass(tone: Tile['tone']) {
 
     <dl
       v-else
-      class="grid grid-cols-2 divide-x divide-y divide-default md:grid-cols-4 xl:grid-cols-7 xl:divide-y-0"
+      class="grid grid-cols-2 divide-x divide-y divide-default md:grid-cols-4 xl:grid-cols-8 xl:divide-y-0"
     >
       <div
         v-for="tile in tiles"
@@ -122,6 +124,12 @@ function toneClass(tone: Tile['tone']) {
           class="num text-[11px] text-dimmed"
         >
           {{ tile.sub }}
+        </dd>
+        <dd
+          v-if="tile.chip"
+          class="mt-1"
+        >
+          <span class="ai-chip text-[10px]">{{ tile.chip }}</span>
         </dd>
       </div>
     </dl>

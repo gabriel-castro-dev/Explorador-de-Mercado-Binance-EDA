@@ -3,6 +3,16 @@ import type { FeatureKey, FeatureRow, Kline } from '~/types/api'
 
 export type LinePoint = LineData<UTCTimestamp> | WhitespaceData<UTCTimestamp>
 
+/**
+ * Cenários do modelo (Design.md §2.4): três trajetórias depois da linha de corte.
+ * Cada série começa na última vela real — nunca inventadas no front (marco 3).
+ */
+export interface ScenarioSet {
+  best: LinePoint[]
+  expected: LinePoint[]
+  worst: LinePoint[]
+}
+
 /** ISO 8601 → segundos UTC (Lightweight Charts usa segundos, não ms). */
 export function toUtcSeconds(iso: string): UTCTimestamp {
   return Math.floor(Date.parse(iso) / 1000) as UTCTimestamp

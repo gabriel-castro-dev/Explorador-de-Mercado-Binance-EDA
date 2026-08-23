@@ -4,38 +4,42 @@ import type { DropdownMenuItem, NavigationMenuItem } from '@nuxt/ui'
 const route = useRoute()
 const user = useSupabaseUser()
 const { signOut } = useAuthActions()
-const drawerOpen = useIndicatorsDrawer()
-const prefsOpen = ref(false)
 
 const email = computed(() => (user.value?.email as string | undefined) ?? '')
 const initials = computed(() => email.value.slice(0, 2).toUpperCase() || '··')
 
 const navItems = computed<NavigationMenuItem[]>(() => [
-  { label: 'Dashboard', icon: 'i-lucide-trending-up', to: '/', active: route.path === '/' },
+  { label: 'Início', icon: 'i-lucide-house', to: '/', active: route.path === '/' },
+  { label: 'Gráficos', icon: 'i-lucide-chart-candlestick', to: '/graficos', active: route.path.startsWith('/graficos') },
+  { label: 'Previsões', icon: 'i-lucide-sparkles', to: '/previsoes', active: route.path.startsWith('/previsoes') },
   { label: 'Mercado', icon: 'i-lucide-table-2', to: '/mercado', active: route.path.startsWith('/mercado') },
-  { label: 'Previsões', icon: 'i-lucide-sparkles', disabled: true, badge: { label: 'EM BREVE', variant: 'outline', color: 'neutral', class: 'eyebrow' }, title: 'Previsões do modelo — em breve' },
 ])
 
 const accountItems = computed<DropdownMenuItem[][]>(() => [
   [{ label: email.value || 'Conta', icon: 'i-lucide-user', disabled: true }],
-  [{ label: 'Preferências', icon: 'i-lucide-settings-2', onSelect: () => { prefsOpen.value = true } }],
+  [{ label: 'Preferências', icon: 'i-lucide-settings-2', to: '/preferencias' }],
   [{ label: 'Sair', icon: 'i-lucide-log-out', onSelect: () => void signOut() }],
 ])
 
-const isDashboard = computed(() => route.path === '/')
+const mobileNav = computed(() => [
+  { label: 'Início', icon: 'i-lucide-house', to: '/', active: route.path === '/' },
+  { label: 'Gráficos', icon: 'i-lucide-chart-candlestick', to: '/graficos', active: route.path.startsWith('/graficos') },
+  { label: 'Previsões', icon: 'i-lucide-sparkles', to: '/previsoes', active: route.path.startsWith('/previsoes') },
+  { label: 'Mercado', icon: 'i-lucide-table-2', to: '/mercado', active: route.path.startsWith('/mercado') },
+])
 </script>
 
 <template>
   <div class="flex min-h-dvh flex-col pb-[calc(56px+env(safe-area-inset-bottom))] md:pb-0">
     <UHeader
       :toggle="false"
-      :ui="{ root: 'h-14 border-b border-default bg-elevated/95 backdrop-blur', container: 'max-w-[1440px] h-14 gap-4', left: 'min-w-0' }"
+      :ui="{ root: 'h-[58px] border-b border-[var(--cf-border-muted)] bg-[rgba(6,11,22,.86)] backdrop-blur-[14px]', container: 'max-w-[1440px] h-[58px] gap-4', left: 'min-w-0' }"
     >
       <template #left>
         <NuxtLink
           to="/"
           class="flex items-center gap-2.5 rounded-md"
-          aria-label="crypto forecasting — dashboard"
+          aria-label="crypto forecasting — início"
         >
           <AppLogo />
           <span class="hidden text-[15px] font-semibold text-highlighted sm:inline">crypto forecasting</span>
@@ -49,13 +53,6 @@ const isDashboard = computed(() => route.path === '/')
       </template>
 
       <template #right>
-        <UTooltip text="Alternar tema claro/escuro">
-          <UColorModeButton
-            color="neutral"
-            variant="ghost"
-            aria-label="Alternar tema claro/escuro"
-          />
-        </UTooltip>
         <UDropdownMenu
           :items="accountItems"
           :content="{ align: 'end' }"
@@ -83,68 +80,25 @@ const isDashboard = computed(() => route.path === '/')
       <slot />
     </main>
 
-    <!-- Barra inferior (mobile) — ux-spec §2/§11 -->
+    <!-- Barra inferior (mobile) — Início · Gráficos · Previsões · Mercado -->
     <nav
-      class="fixed inset-x-0 bottom-0 z-40 flex border-t border-default bg-elevated md:hidden"
+      class="fixed inset-x-0 bottom-0 z-40 flex border-t border-[var(--cf-border-muted)] bg-[rgba(6,11,22,.92)] backdrop-blur-[14px] md:hidden"
       style="padding-bottom: max(8px, env(safe-area-inset-bottom))"
       aria-label="Principal (mobile)"
     >
       <NuxtLink
-        to="/"
+        v-for="item in mobileNav"
+        :key="item.to"
+        :to="item.to"
         class="flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px]"
-        :class="isDashboard ? 'text-primary' : 'text-muted'"
-        :aria-current="isDashboard ? 'page' : undefined"
+        :class="item.active ? 'text-primary' : 'text-muted'"
+        :aria-current="item.active ? 'page' : undefined"
       >
         <UIcon
-          name="i-lucide-trending-up"
+          :name="item.icon"
           class="size-5"
-        />Dashboard
+        />{{ item.label }}
       </NuxtLink>
-      <NuxtLink
-        to="/mercado"
-        class="flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px]"
-        :class="route.path.startsWith('/mercado') ? 'text-primary' : 'text-muted'"
-        :aria-current="route.path.startsWith('/mercado') ? 'page' : undefined"
-      >
-        <UIcon
-          name="i-lucide-table-2"
-          class="size-5"
-        />Mercado
-      </NuxtLink>
-      <button
-        v-if="isDashboard"
-        type="button"
-        class="flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] text-muted"
-        aria-haspopup="dialog"
-        :aria-expanded="drawerOpen"
-        @click="drawerOpen = true"
-      >
-        <UIcon
-          name="i-lucide-sliders-horizontal"
-          class="size-5"
-        />Indicadores
-      </button>
-      <span
-        v-else
-        class="flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] text-dimmed"
-        aria-disabled="true"
-        title="Previsões — em breve"
-      >
-        <UIcon
-          name="i-lucide-sparkles"
-          class="size-5"
-        />Previsões
-      </span>
     </nav>
-
-    <UModal
-      v-model:open="prefsOpen"
-      title="Preferências"
-      description="Ajustes salvos neste navegador."
-    >
-      <template #body>
-        <PreferencesPanel />
-      </template>
-    </UModal>
   </div>
 </template>

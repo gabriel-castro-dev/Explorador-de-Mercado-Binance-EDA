@@ -1,80 +1,139 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
 
-/* Tokens de design — docs/design/tokens.md ("Observatório": analítico sóbrio). */
+/* Google Sans + Google Sans Code — self-host (Design.md §3), variáveis 400–700. */
+@font-face {
+  font-family: 'Google Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('~/assets/fonts/google-sans-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Google Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('~/assets/fonts/google-sans-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Google Sans Code';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('~/assets/fonts/google-sans-code-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Google Sans Code';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('~/assets/fonts/google-sans-code-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* Tokens de design — Design.md v2 "Dark-Tech" (dark-only). */
 @theme static {
-  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: 'Google Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Google Sans Code', ui-monospace, Consolas, monospace;
+
+  /* Azul elétrico #3e86f7 — paleta primária (uso seletivo ≤ 20 % da composição). */
+  --color-electric-50: #eef5ff;
+  --color-electric-100: #d9e8fe;
+  --color-electric-200: #bcd7fd;
+  --color-electric-300: #8ebdfb;
+  --color-electric-400: #64a3f9;
+  --color-electric-500: #3e86f7;
+  --color-electric-600: #2668e0;
+  --color-electric-700: #1f53b8;
+  --color-electric-800: #1f4694;
+  --color-electric-900: #1e3c77;
+  --color-electric-950: #172a52;
 }
 
 :root {
-  --ui-radius: 0.375rem; /* 6px controles; cards 8px; nada acima */
-  --ui-header-height: 3.5rem;
+  --ui-radius: 0.5rem; /* 8px controles; cards 12px (glass); chips 999px. Nada além disso. */
+  --ui-header-height: 3.625rem; /* 58px */
 
-  /* Chrome — light */
-  --ui-bg: #fafafa;
-  --ui-bg-elevated: #ffffff;
-  --ui-bg-muted: #f4f4f5;
-  --ui-bg-accented: #e4e4e7;
-  --ui-border: #e4e4e7;
-  --ui-border-muted: #ededf0;
-  --ui-text-highlighted: #18181b;
-  --ui-text: #27272a;
-  --ui-text-muted: #52525b;
-  --ui-text-dimmed: #8b8b94;
-  --ui-primary: var(--ui-color-primary-600);
+  /* Chrome — navy quase-preto (nunca #000 puro) */
+  --ui-bg: #060b16;
+  --ui-bg-elevated: #0c1626;
+  --ui-bg-muted: #0a1120;
+  --ui-bg-accented: #13223a;
+  --ui-border: rgba(216, 230, 245, 0.14);
+  --ui-border-muted: rgba(216, 230, 245, 0.08);
+  --ui-border-accented: rgba(216, 230, 245, 0.26);
+  --ui-text-highlighted: #f6f9fd;
+  --ui-text: #dde6f2;
+  --ui-text-muted: #9fb0c7;
+  --ui-text-dimmed: #66788f;
+  --ui-text-inverted: #04070f; /* texto sobre o botão elétrico (contraste 7.4:1) */
+  --ui-primary: var(--ui-color-primary-500);
 
-  /* Dados — par divergente alta/baixa (validado dataviz, sempre com ▲▼/sinal) */
-  --cf-up: #0f9d58;
-  --cf-down: #d93025;
-  --cf-flat: #8b8b94;
-  --cf-up-soft: rgba(15, 157, 88, 0.35);
-  --cf-down-soft: rgba(217, 48, 37, 0.35);
+  /* Superfícies Dark-Tech */
+  --cf-bg: #060b16;
+  --cf-bg-deep: #04070f;
+  --cf-solid: #0c1626; /* canvas do gráfico, células sticky — nunca translúcido */
+  --cf-glass: linear-gradient(160deg, rgba(30, 48, 80, 0.42), rgba(12, 22, 42, 0.55));
+  --cf-glass-solid: #0d1729; /* fallback sem backdrop-filter */
+  --cf-border: rgba(216, 230, 245, 0.14);
+  --cf-border-muted: rgba(216, 230, 245, 0.08);
+  --cf-border-strong: rgba(216, 230, 245, 0.26);
 
-  /* Estados de sistema fora do tema Nuxt UI */
-  --cf-warning: #b45309;
-  --cf-warning-bg: #fffbeb;
-  --cf-danger: #b91c1c;
-  --cf-danger-bg: #fef2f2;
-  --cf-primary-soft: #eef2ff;
-  --cf-forecast-fill: rgba(79, 70, 229, 0.12);
-}
+  /* Acentos */
+  --cf-electric: #3e86f7; /* ação primária, foco, nav ativa — iluminação seletiva */
+  --cf-cyan: #5fc4ff; /* EXCLUSIVO do que vem do modelo (IA) */
+  --cf-ice: #dbe7f5; /* branco-gelo: contornos, vela de alta vazada, valores de alta */
+  --cf-glow: 0 0 24px rgba(62, 134, 247, 0.35); /* no máx. 1 por tela */
 
-.dark {
-  --ui-bg: #18181b;
-  --ui-bg-elevated: #1f1f23;
-  --ui-bg-muted: #26262b;
-  --ui-bg-accented: #2e2e34;
-  --ui-border: #2e2e34;
-  --ui-border-muted: #26262b;
-  --ui-text-highlighted: #fafafa;
-  --ui-text: #e4e4e7;
-  --ui-text-muted: #a1a1aa;
-  --ui-text-dimmed: #71717a;
-  --ui-primary: var(--ui-color-primary-400);
+  /* Dados — alta gelo × baixa vermelha (ΔE deutan 30.3, audit.md) */
+  --cf-up: #dbe7f5;
+  --cf-down: #e5484d;
+  --cf-flat: #66788f;
+  --cf-up-soft: rgba(219, 231, 245, 0.28);
+  --cf-down-soft: rgba(229, 72, 77, 0.3);
 
-  --cf-up: #26a69a;
-  --cf-down: #ef5350;
-  --cf-flat: #71717a;
-  --cf-up-soft: rgba(38, 166, 154, 0.35);
-  --cf-down-soft: rgba(239, 83, 80, 0.35);
-
-  --cf-warning: #fbbf24;
-  --cf-warning-bg: rgba(251, 191, 36, 0.12);
-  --cf-danger: #f87171;
-  --cf-danger-bg: rgba(248, 113, 113, 0.12);
-  --cf-primary-soft: rgba(129, 140, 248, 0.14);
-  --cf-forecast-fill: rgba(129, 140, 248, 0.14);
+  /* Estados de sistema */
+  --cf-warning: #d6b25e; /* dourado, só para dado velho; sempre com ícone + texto */
+  --cf-warning-bg: rgba(214, 178, 94, 0.12);
+  --cf-danger: #e5484d;
+  --cf-danger-bg: rgba(229, 72, 77, 0.12);
+  --cf-primary-soft: rgba(62, 134, 247, 0.14);
+  --cf-forecast-fill: rgba(95, 196, 255, 0.1); /* área reservada de previsão = ciano (IA) */
 }
 
 @layer base {
   html {
-    font-size: 13px;
-    line-height: 1.45;
+    font-size: 13.5px;
+    line-height: 1.5;
+  }
+
+  /*
+   * Fundo pintado no body E no root do app (#__nuxt tem `isolation: isolate`
+   * pelo Nuxt UI: o mix-blend-mode da logo só enxerga o que está pintado
+   * dentro desse grupo — sem isto, o fundo preto do PNG ficaria visível).
+   */
+  body,
+  #__nuxt {
+    background-color: var(--cf-bg);
+    /* Luz ambiente: um brilho azul por página, no topo (Design.md §2.1). */
+    background-image: radial-gradient(1200px 600px at 70% -10%, rgba(62, 134, 247, 0.1), transparent 60%);
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+  }
+
+  #__nuxt {
+    min-height: 100dvh;
   }
 
   body {
-    @apply bg-default text-default antialiased;
+    @apply text-default antialiased;
   }
 
   h1, h2, h3 {
@@ -82,10 +141,28 @@
     letter-spacing: -0.01em;
   }
 
-  /* Anel de foco único em toda a UI (tokens.md §1) */
+  /* Anel de foco único em toda a UI (Design.md §4) */
   :focus-visible {
-    outline: 2px solid var(--ui-primary);
+    outline: 2px solid var(--cf-electric);
     outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: rgba(62, 134, 247, 0.35);
+    color: var(--ui-text-highlighted);
+  }
+
+  input, textarea {
+    caret-color: var(--cf-electric);
+  }
+
+  a {
+    text-underline-offset: 3px;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(216, 230, 245, 0.18) transparent;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -98,18 +175,77 @@
 }
 
 @utility num {
-  /* Todo número: mono + tabular (tokens.md §3) */
+  /* Todo número: mono + tabular (Design.md §3) */
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
 @utility eyebrow {
-  /* Microcopy/eyebrow: mono 11, caixa alta, tracking +0.06em */
+  /* Eyebrow/microcopy: mono 11, caixa alta, tracking +0.08em */
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
+}
+
+@utility glass {
+  /* Receita do vidro (Design.md §4) — cards 12px */
+  background: var(--cf-glass);
+  border: 1px solid var(--cf-border);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(14px);
+
+  @supports not (backdrop-filter: blur(1px)) {
+    background: var(--cf-glass-solid);
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    background: var(--cf-glass-solid);
+    backdrop-filter: none;
+  }
+}
+
+@utility glass-hi {
+  /* Card em destaque: borda forte + glow elétrico — NO MÁXIMO um por tela */
+  background: var(--cf-glass);
+  border: 1px solid var(--cf-border-strong);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 0 24px rgba(62, 134, 247, 0.35);
+  backdrop-filter: blur(14px);
+
+  @supports not (backdrop-filter: blur(1px)) {
+    background: var(--cf-glass-solid);
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    background: var(--cf-glass-solid);
+    backdrop-filter: none;
+  }
+}
+
+@utility btn-glow {
+  /* Glow do CTA primário — só no botão primário único da tela */
+  box-shadow: 0 0 24px rgba(62, 134, 247, 0.35);
+}
+
+@utility ai-chip {
+  /* Chip do modelo: ciano é exclusivo do que vem da IA */
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--cf-cyan);
+  border: 1px solid rgba(95, 196, 255, 0.35);
+  border-radius: 999px;
+  padding: 2px 10px;
+  white-space: nowrap;
+}
+
+@utility text-ai {
+  color: var(--cf-cyan);
 }
 
 @utility text-up {
@@ -138,4 +274,8 @@
 
 @utility bg-primary-soft {
   background-color: var(--cf-primary-soft);
+}
+
+@utility bg-solid-surface {
+  background-color: var(--cf-solid);
 }

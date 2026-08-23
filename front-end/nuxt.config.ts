@@ -27,6 +27,11 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
+  // Dark-only (Design.md v2): sem alternância de tema, sem @nuxtjs/color-mode.
+  ui: {
+    colorMode: false,
+  },
+
   runtimeConfig: {
     public: {
       // Sobrescrito por NUXT_PUBLIC_API_BASE (ver .env.example).
