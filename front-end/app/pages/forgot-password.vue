@@ -3,7 +3,7 @@ import * as z from 'zod'
 import type { FormSubmitEvent } from '@nuxt/ui'
 
 definePageMeta({ layout: 'auth', middleware: 'guest' })
-useHead({ title: 'Esqueci a senha · crypto forecasting' })
+useHead({ title: 'Esqueci a senha · CRYPTO FORECASTING' })
 
 const { forgotPassword } = useAuthActions()
 
@@ -56,17 +56,17 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
         class="size-3.5"
       /> Voltar
     </NuxtLink>
-    <h1 class="mt-3 text-[20px] font-semibold text-highlighted">
+    <h1 class="cf-h1 mt-4">
       Esqueci a senha
     </h1>
-    <p class="mt-1 text-[13px] text-muted">
+    <p class="mt-2 text-[15px] text-muted">
       Informe o e-mail da conta. Enviaremos um link para criar uma nova senha.
     </p>
 
     <UForm
       :schema="schema"
       :state="state"
-      class="mt-5 space-y-4"
+      class="mt-7 space-y-5"
       @submit="onSubmit"
     >
       <AuthAlert :message="error" />

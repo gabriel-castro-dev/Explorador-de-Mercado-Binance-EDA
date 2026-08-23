@@ -1,6 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'auth', middleware: 'guest' })
-useHead({ title: 'Verifique seu e-mail · crypto forecasting' })
+useHead({ title: 'Verifique seu e-mail · CRYPTO FORECASTING' })
 
 const pendingEmail = usePendingEmail()
 const { resendConfirmation } = useAuthActions()
@@ -41,24 +41,24 @@ async function resend() {
 
 <template>
   <div class="text-center">
-    <div class="mx-auto flex size-11 items-center justify-center rounded-full bg-primary-soft text-primary">
+    <div class="mx-auto flex size-11 items-center justify-center rounded-full bg-electric-soft text-primary">
       <UIcon
         name="i-lucide-inbox"
         class="size-6"
       />
     </div>
-    <h1 class="mt-4 text-[20px] font-semibold text-highlighted">
+    <h1 class="cf-h1 mt-5">
       Verifique seu e-mail
     </h1>
     <p
-      class="mt-2 text-[13px] text-muted"
+      class="mt-2 text-[15px] text-muted"
       role="status"
     >
       Se este e-mail for novo, enviamos um link de confirmação para
       <span class="num text-default">{{ pendingEmail }}</span>. O link vale por 24 horas.
     </p>
 
-    <div class="mt-5 rounded-md border border-default bg-muted px-4 py-3 text-left text-[13px]">
+    <div class="cf-surface mt-6 px-4 py-3.5 text-left text-[14px]">
       <p class="text-muted">
         Não chegou? Confira o spam.
         <span v-if="cooldown > 0">Você pode pedir outro link em <span class="num text-default">{{ cooldownLabel }}</span>.</span>
@@ -76,7 +76,7 @@ async function resend() {
       />
     </div>
 
-    <p class="mt-5 text-[13px]">
+    <p class="mt-6 text-[14px]">
       <NuxtLink
         to="/login"
         class="text-primary"

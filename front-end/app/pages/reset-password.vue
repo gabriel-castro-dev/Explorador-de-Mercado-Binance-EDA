@@ -4,7 +4,7 @@ import type { FormSubmitEvent } from '@nuxt/ui'
 
 // Sem middleware guest: a sessão de recuperação é uma sessão válida.
 definePageMeta({ layout: 'auth' })
-useHead({ title: 'Redefinir senha · crypto forecasting' })
+useHead({ title: 'Redefinir senha · CRYPTO FORECASTING' })
 
 const session = useSupabaseSession()
 const user = useSupabaseUser()
@@ -60,10 +60,10 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
 
 <template>
   <div>
-    <h1 class="text-[20px] font-semibold text-highlighted">
+    <h1 class="cf-h1">
       Redefinir senha
     </h1>
-    <p class="mt-1 text-[13px] text-muted">
+    <p class="mt-2 text-[15px] text-muted">
       Crie uma nova senha<template v-if="email">
         para <span class="num text-default">{{ email }}</span>
       </template>.
@@ -71,7 +71,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
 
     <div
       v-if="!ready && linkInvalid"
-      class="mt-5 rounded-md border border-default bg-muted px-4 py-3 text-[13px]"
+      class="cf-surface mt-6 px-4 py-3.5 text-[14px]"
       role="status"
     >
       Link expirado ou inválido?
@@ -84,7 +84,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
     </div>
     <div
       v-else-if="!ready"
-      class="mt-5 flex items-center gap-2 text-[13px] text-muted"
+      class="mt-6 flex items-center gap-2 text-[14px] text-muted"
       role="status"
       aria-busy="true"
     >
@@ -98,7 +98,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
       v-else
       :schema="schema"
       :state="state"
-      class="mt-5 space-y-4"
+      class="mt-7 space-y-5"
       @submit="onSubmit"
     >
       <AuthAlert :message="error" />

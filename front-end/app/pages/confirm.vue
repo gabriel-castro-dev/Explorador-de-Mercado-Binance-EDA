@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /** Callback dos links de e-mail (ux-spec §3.4): só spinner; decide o destino pela sessão + tipo do link. */
 definePageMeta({ layout: 'auth' })
-useHead({ title: 'Confirmando… · crypto forecasting' })
+useHead({ title: 'Confirmando… · CRYPTO FORECASTING' })
 
 const session = useSupabaseSession()
 const authHash = useState<{ type: string | null, error: string | null }>('cf-auth-hash')

@@ -1,23 +1,35 @@
+<script setup lang="ts">
+/**
+ * Ambiente de autenticação (Design.md §8): marca pequena no topo esquerdo, margem
+ * ampla, torus à esquerda e formulário no terço direito — integrado ao fundo, sem
+ * card externo. O Login é imersivo; as demais telas usam o torus estático.
+ */
+const route = useRoute()
+const variant = computed<'immersive' | 'quiet'>(() => (route.path === '/login' ? 'immersive' : 'quiet'))
+</script>
+
 <template>
-  <div class="flex min-h-dvh flex-col items-center justify-center px-4 py-10">
-    <NuxtLink
-      to="/login"
-      class="mb-6 flex items-center gap-2.5 rounded-md"
-      aria-label="crypto forecasting — início"
-    >
-      <AppLogo :size="34" />
-      <span class="text-[15px] font-semibold text-highlighted">crypto forecasting</span>
-    </NuxtLink>
+  <div class="relative min-h-dvh overflow-hidden">
+    <AuthBackdrop :variant="variant" />
 
-    <UCard
-      class="w-full max-w-[400px]"
-      :ui="{ body: 'p-7 sm:p-7' }"
-    >
-      <slot />
-    </UCard>
+    <div class="cf-gutter relative z-10 flex min-h-dvh flex-col py-7 lg:py-9">
+      <NuxtLink
+        to="/login"
+        class="self-start rounded-sm"
+        aria-label="CRYPTO FORECASTING — entrar"
+      >
+        <AppBrand size="lg" />
+      </NuxtLink>
 
-    <p class="num mt-6 text-[11px] text-dimmed">
-      Dados da Binance · snapshots diários · horários em UTC
-    </p>
+      <div class="flex flex-1 items-center justify-center py-10 lg:justify-end lg:py-6">
+        <div class="w-full max-w-[420px] lg:me-[3vw] xl:me-[5vw]">
+          <slot />
+        </div>
+      </div>
+
+      <p class="num text-[11px] tracking-[0.02em] text-dimmed lg:text-end">
+        Dados da Binance · snapshots diários · horários em UTC
+      </p>
+    </div>
   </div>
 </template>
