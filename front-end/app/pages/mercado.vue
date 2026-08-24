@@ -104,6 +104,7 @@ const errorMessage = computed(() => messageOf(tickers.error.value))
         :rows="rows"
         :selected-symbol="symbol"
         :loading="tickers.status.value === 'pending'"
+        :tf="tf"
       />
     </div>
 

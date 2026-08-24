@@ -2,7 +2,7 @@
 import { useDocumentVisibility, useResizeObserver } from '@vueuse/core'
 import type { MonteCarloSeries } from '~/types/forecast'
 import { MONTE_CARLO_COLORS } from '~/utils/constants'
-import { quantileBand, sampleIndices, selectHighlighted, valueExtent } from '~/utils/monte-carlo'
+import { filterPaths, quantileBand, sampleIndices, selectHighlighted, valueExtent } from '~/utils/monte-carlo'
 import { formatNumber, formatPercent, formatUtcShort } from '~/utils/format'
 import { easeSection } from '~/utils/motion'
 
@@ -53,13 +53,12 @@ const prepared = computed(() => {
   const anchor = observed[observed.length - 1]
   if (!anchor) return null
 
-  const paths = s.paths
-    .filter(p => p.length > 0)
-    .map(p => [anchor.value, ...p])
-  if (!paths.length) return null
+  const filtered = filterPaths(s.paths, s.classified)
+  if (!filtered.paths.length) return null
 
+  const paths = filtered.paths.map(p => [anchor.value, ...p])
   const steps = paths.reduce((max, p) => Math.max(max, p.length), 0)
-  const highlighted = selectHighlighted(s.paths, s.classified)
+  const highlighted = selectHighlighted(filtered.paths, filtered.classified)
   const band = quantileBand(paths)
 
   const cutIndex = observed.length - 1
