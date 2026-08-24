@@ -23,6 +23,7 @@ from app.services.insights_service import (
     DISCLAIMER,
     InsightsService,
     InsightsUnavailableError,
+    _is_valid_reading,
     build_attempts,
 )
 from config import get_settings
@@ -58,14 +59,15 @@ def _snapshots(n=6):
     return rows
 
 
-def _service(reading_text="Texto do dia.", snapshots=None, firestore_stored=None):
+def _service(reading_text="Texto do dia.", snapshots=None, firestore_stored=None, client=None):
     tickers = MagicMock()
     tickers.get_latest_24h_snapshots.return_value = _snapshots() if snapshots is None else snapshots
     features = MagicMock()
     features.query_features.return_value = [{"atr_14": 4.2}]
 
-    client = MagicMock()
-    client.complete.return_value = (reading_text, "opencode-zen/deepseek-v4-flash-free")
+    if client is None:
+        client = MagicMock()
+        client.complete.return_value = (reading_text, "opencode-zen/deepseek-v4-flash-free")
 
     snapshot = MagicMock()
     snapshot.exists = firestore_stored is not None
@@ -192,6 +194,138 @@ class InsightsServiceTests(unittest.TestCase):
     def test_client_with_empty_chain_raises(self):
         with self.assertRaises(LlmGatewayError):
             LlmGatewayClient().complete([], system="s", user="u")
+
+
+class ReadingValidationTests(unittest.TestCase):
+    """Portao contra raciocinio vazado: nada disso pode virar leitura do dia."""
+
+    def test_accepts_a_short_portuguese_paragraph(self):
+        self.assertTrue(
+            _is_valid_reading(
+                "O mercado subiu de forma ampla nas ultimas 24 horas e o volume "
+                "acompanhou os pares principais."
+            )
+        )
+
+    def test_rejects_leaked_reasoning_block(self):
+        self.assertFalse(_is_valid_reading("<think>ok, o usuario quer isso</think>"))
+
+    def test_rejects_english_chain_of_thought(self):
+        self.assertFalse(
+            _is_valid_reading(
+                "We need to write a single paragraph in Portuguese. The user gave us "
+                "the numbers, so let's start with the breadth of the move."
+            )
+        )
+
+    def test_rejects_text_longer_than_the_budget(self):
+        self.assertFalse(_is_valid_reading("O mercado de cripto subiu de novo. " * 40))
+
+    def test_rejects_more_than_six_sentences(self):
+        self.assertFalse(_is_valid_reading("O mercado de cripto nao parou. " * 7))
+
+
+class LlmGatewayRequestTests(unittest.TestCase):
+    """Corpo enviado e leitura da resposta (sem rede: httpx.post e fake)."""
+
+    @staticmethod
+    def _response(content, finish_reason="stop", extra_message=None):
+        message = {"content": content}
+        if extra_message:
+            message.update(extra_message)
+        response = MagicMock()
+        response.json.return_value = {
+            "choices": [{"finish_reason": finish_reason, "message": message}]
+        }
+        return response
+
+    def test_openrouter_body_carries_the_reasoning_budget(self):
+        attempt = GatewayAttempt(provider="openrouter", api_key="k", model="nvidia/nemotron:free")
+        with patch(
+            "app.clients.llm_gateway.httpx.post", return_value=self._response("Texto.")
+        ) as post:
+            LlmGatewayClient().complete([attempt], system="s", user="u")
+        body = post.call_args.kwargs["json"]
+        self.assertEqual(body["reasoning"], {"max_tokens": 1500})
+        self.assertEqual(body["max_tokens"], 2500)
+
+    def test_zen_body_omits_the_undocumented_reasoning_field(self):
+        attempt = GatewayAttempt(
+            provider="opencode-zen", api_key="k", model="deepseek-v4-flash-free"
+        )
+        with patch(
+            "app.clients.llm_gateway.httpx.post", return_value=self._response("Texto.")
+        ) as post:
+            LlmGatewayClient().complete([attempt], system="s", user="u")
+        self.assertNotIn("reasoning", post.call_args.kwargs["json"])
+
+    def test_truncated_completion_advances_the_chain(self):
+        attempts = [
+            GatewayAttempt(provider="opencode-zen", api_key="k", model="deepseek-v4-flash-free"),
+            GatewayAttempt(provider="openrouter", api_key="k2", model="nvidia/nemotron:free"),
+        ]
+        responses = [
+            self._response(
+                "We need to write the reading in Portuguese. The user gave numbers, so",
+                finish_reason="length",
+            ),
+            self._response("O mercado de cripto subiu com volume forte."),
+        ]
+        with patch("app.clients.llm_gateway.httpx.post", side_effect=responses):
+            text, model = LlmGatewayClient().complete(attempts, system="s", user="u")
+        self.assertEqual(text, "O mercado de cripto subiu com volume forte.")
+        self.assertEqual(model, "openrouter/nvidia/nemotron:free")
+
+    def test_think_block_is_stripped_and_only_the_paragraph_survives(self):
+        attempt = GatewayAttempt(provider="openrouter", api_key="k", model="nvidia/nemotron:free")
+        content = "<think>Okay, the user wants five sentences.</think>\nO mercado subiu hoje."
+        with patch("app.clients.llm_gateway.httpx.post", return_value=self._response(content)):
+            text, _ = LlmGatewayClient().complete([attempt], system="s", user="u")
+        self.assertEqual(text, "O mercado subiu hoje.")
+
+    def test_content_with_only_reasoning_counts_as_empty(self):
+        attempt = GatewayAttempt(provider="openrouter", api_key="k", model="nvidia/nemotron:free")
+        response = self._response(
+            "<think>Pensando alto.</think>", extra_message={"reasoning": "Pensando alto."}
+        )
+        with patch("app.clients.llm_gateway.httpx.post", return_value=response):
+            with self.assertRaises(LlmGatewayError):
+                LlmGatewayClient().complete([attempt], system="s", user="u")
+
+    def test_validator_rejection_advances_the_chain(self):
+        attempts = [
+            GatewayAttempt(provider="opencode-zen", api_key="k", model="deepseek-v4-flash-free"),
+            GatewayAttempt(provider="openrouter", api_key="k2", model="nvidia/nemotron:free"),
+        ]
+        responses = [self._response("recusado"), self._response("aceito")]
+        with patch("app.clients.llm_gateway.httpx.post", side_effect=responses):
+            text, model = LlmGatewayClient().complete(
+                attempts, system="s", user="u", validator=lambda t: t == "aceito"
+            )
+        self.assertEqual(text, "aceito")
+        self.assertEqual(model, "openrouter/nvidia/nemotron:free")
+
+
+class InvalidReadingIsNeverCachedTests(unittest.TestCase):
+    def setUp(self):
+        self._env_patch = patch.dict(os.environ, _ENV)
+        self._env_patch.start()
+        get_settings.cache_clear()
+        insights_service._cache.clear()
+
+    def tearDown(self):
+        self._env_patch.stop()
+        get_settings.cache_clear()
+        insights_service._cache.clear()
+
+    def test_reasoning_in_every_attempt_leaves_nothing_stored(self):
+        service, _, document = _service(client=LlmGatewayClient())
+        leaked = "We need to summarize the numbers for the user, so the first sentence"
+        with patch.object(LlmGatewayClient, "_complete_once", return_value=leaked):
+            with self.assertRaises(InsightsUnavailableError):
+                service.get_daily_reading()
+        document.set.assert_not_called()
+        self.assertEqual(insights_service._cache, {})
 
 
 class InsightsApiTests(unittest.TestCase):

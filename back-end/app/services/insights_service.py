@@ -5,9 +5,14 @@ here — it never receives permission to invent data. The reading is global
 (same for every user) and cached per UTC day: Firestore is the durable
 cache, a process dict avoids re-reading it on every request, and a lock
 makes generation single-flight under concurrency.
+
+Só texto aprovado pelo portão ``_is_valid_reading`` chega ao cache: com
+modelos de raciocínio, uma resposta truncada ou o próprio raciocínio vazado
+ficariam presos no Firestore até virar o dia UTC.
 """
 
 import logging
+import re
 import threading
 from datetime import datetime, timezone
 from typing import Optional
@@ -36,6 +41,69 @@ SYSTEM_PROMPT = (
 )
 
 _INSUFFICIENT_DATA_THRESHOLD = 5
+
+# Portão de validação do texto gerado. Os modelos da cadeia são de raciocínio:
+# quando o orçamento acaba pensando, o que sobra é raciocínio em inglês, longo
+# e cortado no meio. Nada disso pode virar leitura do dia nem entrar no cache.
+_MAX_READING_CHARS = 900
+_MAX_READING_SENTENCES = 6
+_SENTENCE_END = re.compile(r"[.!?…]+")
+# Marcadores de raciocínio em inglês (o prompt pede pt-BR; o modelo pensa em inglês).
+_ENGLISH_MARKERS = (
+    "we need",
+    "we should",
+    "we must",
+    "let's",
+    "lets ",
+    "the user",
+    "i should",
+    "i need",
+    "okay,",
+    "the assistant",
+)
+# Palavras funcionais que qualquer parágrafo em pt-BR carrega.
+_PT_MARKERS = (
+    " de ",
+    " da ",
+    " do ",
+    " das ",
+    " dos ",
+    " que ",
+    " para ",
+    " com ",
+    " não ",
+    " uma ",
+    " nas ",
+    " nos ",
+    " em ",
+    " e ",
+)
+_ACCENTS = "áàâãéêíóôõúüç"
+
+
+def _looks_english(text: str) -> bool:
+    """Heurística simples: raciocínio em inglês nunca parece um parágrafo pt-BR."""
+    lowered = f" {text.lower()} "
+    if any(marker in lowered for marker in _ENGLISH_MARKERS):
+        return True
+    pt_hits = sum(1 for marker in _PT_MARKERS if marker in lowered)
+    has_accent = any(char in lowered for char in _ACCENTS)
+    return pt_hits < 2 and not has_accent
+
+
+def _is_valid_reading(text: str) -> bool:
+    """True quando o texto serve como leitura do dia (pt-BR, curta, sem raciocínio)."""
+    stripped = text.strip()
+    if not stripped:
+        return False
+    if "<think" in stripped.lower():
+        return False
+    if len(stripped) > _MAX_READING_CHARS:
+        return False
+    sentences = [part for part in _SENTENCE_END.split(stripped) if part.strip()]
+    if len(sentences) > _MAX_READING_SENTENCES:
+        return False
+    return not _looks_english(stripped)
 
 
 class InsightsUnavailableError(RuntimeError):
@@ -209,6 +277,7 @@ class InsightsService:
                         "Escreva a leitura do dia com base apenas nestes números do último "
                         f"snapshot diário: {context}"
                     ),
+                    validator=_is_valid_reading,
                 )
             except LlmGatewayError as exc:
                 raise InsightsUnavailableError(str(exc)) from exc
