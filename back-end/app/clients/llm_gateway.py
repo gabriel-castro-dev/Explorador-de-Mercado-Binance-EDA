@@ -9,8 +9,14 @@ Todos os modelos da cadeia atual são de raciocínio: em APIs compatíveis com
 OpenAI o ``max_tokens`` é orçamento único para pensamento **e** resposta, e um
 teto baixo faz o modelo gastar tudo pensando e devolver texto truncado (ou o
 próprio raciocínio vazado em ``content``). Por isso o client dá orçamento
-folgado, limita o raciocínio onde o gateway aceita, recusa respostas truncadas
-e remove blocos ``<think>`` antes de aceitar o texto.
+folgado, recusa respostas truncadas e remove blocos ``<think>`` antes de
+aceitar o texto.
+
+O campo ``reasoning`` do OpenRouter (que limitaria o pensamento) não é
+enviado: medido em 2026-08-24, o nemotron da Nvidia devolve 502 sempre que
+ele está no corpo e responde normalmente sem ele. Os dois nemotron já mandam
+o raciocínio num campo ``message.reasoning`` separado, então ``content`` já
+chega limpo e o orçamento folgado basta.
 """
 
 import logging
@@ -24,15 +30,6 @@ import httpx
 logger = logging.getLogger(__name__)
 
 _TIMEOUT_SECONDS = 60.0
-
-# Teto do raciocínio, dentro do orçamento total de max_tokens: sobra espaço
-# para o parágrafo final. Verificado em 2026-08-24 na doc do OpenRouter:
-# "reasoning" aceita effort OU max_tokens (nunca os dois juntos).
-_REASONING_MAX_TOKENS = 1500
-
-# Gateways cuja documentação descreve o campo "reasoning" no corpo da
-# requisição. O Zen não documenta o campo, então nada é enviado para ele.
-_REASONING_CONTROL_GATEWAYS = frozenset({"openrouter"})
 
 # Raciocínio vazado no content: bloco fechado, ou aberto e cortado no fim.
 _THINK_BLOCK = re.compile(r"<think\b[^>]*>.*?</think\s*>", re.DOTALL | re.IGNORECASE)
@@ -97,8 +94,6 @@ class LlmGatewayClient:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
-        if attempt.provider in _REASONING_CONTROL_GATEWAYS:
-            payload["reasoning"] = {"max_tokens": _REASONING_MAX_TOKENS}
         response = httpx.post(
             f"{base_url}/chat/completions",
             json=payload,
@@ -109,6 +104,12 @@ class LlmGatewayClient:
         body = response.json()
         choices = body.get("choices") or []
         if not choices:
+            # O OpenRouter devolve falha do provedor upstream como 200 com um
+            # "error" no corpo; sem isto o log diria só "empty completion".
+            error = body.get("error")
+            if error:
+                message = error.get("message") if isinstance(error, dict) else error
+                raise LlmGatewayError(f"gateway error: {message}")
             raise LlmGatewayError("empty completion")
         choice = choices[0] or {}
         if choice.get("finish_reason") == "length":

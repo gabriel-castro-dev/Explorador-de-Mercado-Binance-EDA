@@ -239,25 +239,48 @@ class LlmGatewayRequestTests(unittest.TestCase):
         }
         return response
 
-    def test_openrouter_body_carries_the_reasoning_budget(self):
+    def test_body_carries_the_generous_token_budget(self):
+        """O orçamento folgado é o que impede o modelo de gastar tudo pensando."""
         attempt = GatewayAttempt(provider="openrouter", api_key="k", model="nvidia/nemotron:free")
         with patch(
             "app.clients.llm_gateway.httpx.post", return_value=self._response("Texto.")
         ) as post:
             LlmGatewayClient().complete([attempt], system="s", user="u")
-        body = post.call_args.kwargs["json"]
-        self.assertEqual(body["reasoning"], {"max_tokens": 1500})
-        self.assertEqual(body["max_tokens"], 2500)
+        self.assertEqual(post.call_args.kwargs["json"]["max_tokens"], 2500)
 
-    def test_zen_body_omits_the_undocumented_reasoning_field(self):
-        attempt = GatewayAttempt(
-            provider="opencode-zen", api_key="k", model="deepseek-v4-flash-free"
-        )
+    def test_no_gateway_receives_the_reasoning_field(self):
+        """Medido em 2026-08-24: com "reasoning" no corpo o nemotron devolve 502."""
+        for provider, model in (
+            ("openrouter", "nvidia/nemotron:free"),
+            ("opencode-zen", "deepseek-v4-flash-free"),
+        ):
+            with self.subTest(provider=provider):
+                attempt = GatewayAttempt(provider=provider, api_key="k", model=model)
+                with patch(
+                    "app.clients.llm_gateway.httpx.post", return_value=self._response("Texto.")
+                ) as post:
+                    LlmGatewayClient().complete([attempt], system="s", user="u")
+                self.assertNotIn("reasoning", post.call_args.kwargs["json"])
+
+    def test_upstream_error_in_a_200_body_is_reported_and_advances_the_chain(self):
+        """O OpenRouter devolve falha do provedor como 200 com "error" no corpo."""
+        attempts = [
+            GatewayAttempt(provider="openrouter", api_key="k", model="nvidia/nemotron:free"),
+            GatewayAttempt(provider="opencode-zen", api_key="k2", model="nemotron-3-ultra-free"),
+        ]
+        upstream = MagicMock()
+        upstream.json.return_value = {
+            "error": {"message": "Upstream error from Nvidia: Internal server error", "code": 502}
+        }
         with patch(
-            "app.clients.llm_gateway.httpx.post", return_value=self._response("Texto.")
-        ) as post:
-            LlmGatewayClient().complete([attempt], system="s", user="u")
-        self.assertNotIn("reasoning", post.call_args.kwargs["json"])
+            "app.clients.llm_gateway.httpx.post",
+            side_effect=[upstream, self._response("O mercado subiu hoje.")],
+        ):
+            with self.assertLogs("app.clients.llm_gateway", level="WARNING") as logs:
+                text, model = LlmGatewayClient().complete(attempts, system="s", user="u")
+        self.assertEqual(text, "O mercado subiu hoje.")
+        self.assertEqual(model, "opencode-zen/nemotron-3-ultra-free")
+        self.assertIn("Upstream error from Nvidia", "".join(logs.output))
 
     def test_truncated_completion_advances_the_chain(self):
         attempts = [
