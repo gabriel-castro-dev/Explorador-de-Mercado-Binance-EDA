@@ -105,8 +105,12 @@ class BinanceClient:
         Raises:
             RuntimeError: If the connection to the Binance API cannot be established.
         """
+        settings = get_settings()
+        if not settings.BINANCE_API_KEY or not settings.BINANCE_API_SECRET:
+            raise RuntimeError(
+                "BINANCE_API_KEY e BINANCE_API_SECRET são obrigatórias para conectar à Binance."
+            )
         try:
-            settings = get_settings()
             self.api_key: str = settings.BINANCE_API_KEY
             self.api_secret: str = settings.BINANCE_API_SECRET
             self.test_net: bool = settings.USE_TESTNET

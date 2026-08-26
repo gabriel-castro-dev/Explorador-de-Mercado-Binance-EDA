@@ -218,7 +218,7 @@ jobs:
       - name: Pull da imagem pré-construída
         run: docker pull "$ML_IMAGE"
 
-      # Sem WARP: este job só fala com o Supabase (nenhuma chamada à Binance).
+      # Sem WARP nem chaves da Binance: este job só fala com o Supabase.
       - name: Treinar candidatos, aplicar gate e publicar previsões
         run: |
           docker run --rm \

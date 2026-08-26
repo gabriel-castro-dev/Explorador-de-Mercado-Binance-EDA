@@ -110,9 +110,7 @@ def run_training(
     )
     logger.info("Gate: %s", gate.reason)
 
-    residual_quantiles = _residual_quantiles(
-        results[champion.members[0]].pooled_frame, champion_predictions
-    )
+    quantiles = residual_quantiles(results[champion.members[0]].pooled_frame, champion_predictions)
     fold_skills = _fold_skills(champion, results)
 
     # Refit final com todo o histórico (linhas com target completo).
@@ -141,7 +139,7 @@ def run_training(
         naive_report=results["naive"].pooled,
         validation_frame=results[champion.members[0]].pooled_frame,
         validation_predictions=champion_predictions,
-        residual_quantiles=residual_quantiles,
+        residual_quantiles=quantiles,
         fold_skills=fold_skills,
         model_version=model_version,
         train_start=final.frame["timestamp"].min(),
@@ -187,7 +185,7 @@ def _fold_skills(champion: ChampionSelection, results: dict[str, WalkForwardResu
     return skills
 
 
-def _residual_quantiles(frame: pd.DataFrame, predictions: pd.DataFrame) -> pd.DataFrame:
+def residual_quantiles(frame: pd.DataFrame, predictions: pd.DataFrame) -> pd.DataFrame:
     """Quantis dos resíduos de validação, com largura não-decrescente no horizonte."""
     rows = {}
     for target in predictions.columns:

@@ -77,6 +77,12 @@ class MonitoringConfig(BaseModel):
     min_scored_rows: int = Field(gt=0)
 
 
+class MonteCarloConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    n_paths: int = Field(default=1000, gt=0)
+
+
 class MLConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -86,6 +92,7 @@ class MLConfig(BaseModel):
     gate: GateConfig
     backtest: BacktestConfig
     monitoring: MonitoringConfig
+    montecarlo: MonteCarloConfig = Field(default_factory=MonteCarloConfig)
     models: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
     @model_validator(mode="after")

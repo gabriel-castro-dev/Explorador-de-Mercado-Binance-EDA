@@ -12,6 +12,8 @@ class ForecastRepository(BaseRepository):
     _PREDICTIONS_TABLE = "predictions"
     _METRICS_TABLE = "model_metrics"
     _PREDICTIONS_CONFLICT = "symbol,target_time,horizon_days,model_version"
+    _MONTE_CARLO_TABLE = "monte_carlo_runs"
+    _MONTE_CARLO_CONFLICT = "symbol,model_version"
 
     def upsert_predictions(self, rows: list[dict]) -> int:
         """Idempotent upsert of forecast rows (same run twice → same table state)."""
@@ -29,18 +31,23 @@ class ForecastRepository(BaseRepository):
         ).execute()
         logger.info("Métricas persistidas para model_version=%s.", record.get("model_version"))
 
-    def get_latest_run_predictions(self, symbol: str | None = None) -> list[dict]:
-        """Rows of the most recent run (max run_at), optionally for one symbol."""
-        latest = (
+    def _latest_run(self) -> dict | None:
+        """``run_at`` and ``model_version`` of the most recent run (``None`` when empty)."""
+        rows = (
             self.supabase.table(self._PREDICTIONS_TABLE)
-            .select("run_at")
+            .select("run_at, model_version")
             .order("run_at", desc=True)
             .limit(1)
             .execute()
         ).data
-        if not latest:
+        return rows[0] if rows else None
+
+    def get_latest_run_predictions(self, symbol: str | None = None) -> list[dict]:
+        """Rows of the most recent run (max run_at), optionally for one symbol."""
+        latest = self._latest_run()
+        if latest is None:
             return []
-        run_at = latest[0]["run_at"]
+        run_at = latest["run_at"]
         query = (
             self.supabase.table(self._PREDICTIONS_TABLE)
             .select("*")
@@ -51,6 +58,55 @@ class ForecastRepository(BaseRepository):
         if symbol is not None:
             query = query.eq("symbol", symbol)
         return query.execute().data
+
+    def upsert_monte_carlo(self, rows: list[dict]) -> int:
+        """Idempotent upsert of one Monte Carlo cloud per (symbol, model_version)."""
+        if not rows:
+            logger.warning("Nenhuma nuvem de Monte Carlo para persistir.")
+            return 0
+        self._upsert_in_batches(self._MONTE_CARLO_TABLE, rows, self._MONTE_CARLO_CONFLICT)
+        logger.info("%s nuvens persistidas em %s.", len(rows), self._MONTE_CARLO_TABLE)
+        return len(rows)
+
+    def get_latest_monte_carlo(self, symbol: str) -> dict | None:
+        """Most recent cloud (max run_at) of one symbol; ``None`` when never simulated."""
+        rows = (
+            self.supabase.table(self._MONTE_CARLO_TABLE)
+            .select("*")
+            .eq("symbol", symbol)
+            .order("run_at", desc=True)
+            .limit(1)
+            .execute()
+        ).data
+        return rows[0] if rows else None
+
+    def get_model_type(self, model_version: str) -> str | None:
+        """``model_metrics.model_type`` of one version (``None`` when the row is missing)."""
+        rows = (
+            self.supabase.table(self._METRICS_TABLE)
+            .select("model_type")
+            .eq("model_version", model_version)
+            .limit(1)
+            .execute()
+        ).data
+        return rows[0]["model_type"] if rows else None
+
+    def get_latest_run_metrics(self) -> dict | None:
+        """``model_metrics`` row of the version that signed the most recent run.
+
+        ``None`` when there are no predictions yet (or the metrics row is missing).
+        """
+        latest = self._latest_run()
+        if latest is None:
+            return None
+        rows = (
+            self.supabase.table(self._METRICS_TABLE)
+            .select("*")
+            .eq("model_version", latest["model_version"])
+            .limit(1)
+            .execute()
+        ).data
+        return rows[0] if rows else None
 
     def get_scoreable_predictions(self, now: datetime, since: datetime) -> list[dict]:
         """Predictions from runs since ``since`` whose target_time is already realized."""

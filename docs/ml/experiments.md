@@ -56,6 +56,78 @@ e o `model_version` gravado em `model_metrics`.
   o motor agora agrega retornos simples por dia e volta a log só para o acumulado.
   Os relatórios `BT-*` anteriores a esta data subestimam levemente ROI/Sharpe.
 
+## Iteração 2 — Fase 0: rodada vigente sai do run local (2026-08-26)
+
+- **Causa da primeira falha no Actions** (run 33003574807, 39 s): `python -m app.ml.main`
+  chama `setup_logging()` → `get_settings()`, e o `Settings` monolítico exige
+  `BINANCE_API_KEY`/`SECRET` mesmo em um job que só fala com o Supabase. Os jobs
+  `ml-forecast`/`ml-evaluate` eram os únicos criados sem essas variáveis. Primeiro
+  contorno: passar os secrets aos dois jobs no workflow (foi o que rodou a evidência
+  abaixo). A revisão de padrões apontou que isso viola a regra do AGENTS.md ("env vars
+  só são exigidas quando um componente conecta de fato"), então a causa-raiz foi
+  corrigida: `BINANCE_API_KEY`/`SECRET` viraram opcionais no `Settings` e o
+  `BinanceClient` falha com mensagem clara na conexão se faltarem; o contorno saiu do
+  workflow. Vale a partir da próxima imagem `crypto-ml` publicada de `main`.
+- **Evidência** (run [33003779118](https://github.com/gabriel-castro-dev/crypto-forecasting-app/actions/runs/33003779118),
+  5 min 6 s, `workflow_dispatch` a partir do branch com a correção; imagem `crypto-ml`
+  de `main`): `model_version = 20260826-7eb4400-drift`, `git_sha` real, 112 linhas
+  (16 símbolos × 7 horizontes), gate liberado (skill h1 +0,0020 — igual ao run local),
+  20 velas abertas ignoradas. Ranking mantido: drift > ridge > gru > gbm.
+- **Vela aberta refletida no banco:** última vela fechada de `klines_1d` = 2026-08-25,
+  `target_time` de h=1 = 2026-08-26 → origem = ontem, como previsto na revisão do PR #20.
+- **Pendente (fora do controle deste branch):** (a) confirmar o cron das 00:05 UTC de
+  27/08 (`gh run list --workflow crypto_jobs.yml`); (b) `ml-evaluate` manual — o
+  `workflow_dispatch` foi negado pela sessão; os runs de 23/08 e 24/08 já têm ≥ 20
+  alvos realizados, e o cron de segunda 02:00 UTC preenche `realized_metrics` de
+  qualquer forma. Nenhum dos dois bloqueia as fases seguintes.
+
+## Iteração 2 — Fases 1 e 2: métricas na API e `model_type` na curva (2026-08-26)
+
+- `GET /api/v1/forecasts/metrics` devolve `ForecastMetricsOut` construído **do mesmo
+  registro que o job grava** (`build_metrics_record` → JSON → `from_record`); o teste
+  `tests/ml/test_forecast_metrics_schema.py` quebra se gravação e leitura driftarem.
+  Renomeação só na borda: `mae` → `mae_log_return`, `baseline_mae` →
+  `baseline_mae_log_return`; `gate` sobe de `hyperparams` para o topo; `n` vira `int`
+  (o jsonb guarda `173.0` porque `_jsonable` converte tudo em float — não mexi na gravação).
+- **Confiança** = `round(dir_acc × 100)` em h=1; `null` com `n < 120` (`MIN_CONFIDENCE_SAMPLES`
+  = `dataset.min_history_days`, com teste que impede os dois de divergirem). Na rodada
+  vigente isso deixa `PLUMEUSDT` (n=38) sem confiança e 3 ativos com previsão sem entrada
+  em `per_symbol` (não estavam na validação) — o front mostra `—`, como combinado.
+  Leitura honesta: as acurácias direcionais ficam entre 43 % e 58 %, i.e., ao redor do
+  acaso; a coluna informa o que o modelo sabe, não promete acerto.
+- `model_type` entrou em `ForecastOut` sem migration: uma consulta extra a
+  `model_metrics` por request (um run = uma `model_version`); `null` se a linha faltar.
+- OpenAPI exportado e `openapi.d.ts` regenerado; front `lint/typecheck/test` verdes.
+- Ficou para depois: `n` gravado como int na origem (mudaria o jsonb das rodadas antigas);
+  `realized_metrics` continua `null` até o `ml-evaluate` rodar.
+
+## Iteração 2 — Fase 3: Monte Carlo fase 1 (2026-08-26)
+
+- **Simulação no job** (`app/ml/montecarlo.py`): cada trajetória reamostra **uma linha
+  inteira de validação** (resíduos de h=1..7 da mesma origem) sobre o drift previsto —
+  preserva a forma de trajetórias reais em vez de sortear um erro i.i.d. por passo, e a
+  marginal por horizonte continua sendo a distribuição empírica dos resíduos, então os
+  quantis 10/90 da nuvem reproduzem `pred_lower/pred_upper` por construção (teste
+  `test_cloud_agrees_with_uncertainty_band`, tolerância de 25 % da largura da banda em log).
+  Seed = CRC32 de `model_version:símbolo` (a revisão apontou que uma seed só por versão
+  deixava as nuvens de ativos diferentes correlacionadas índice a índice); 1000 trajetórias/símbolo (`montecarlo.n_paths`);
+  preços arredondados a 6 algarismos significativos (~80 KB por linha em jsonb).
+- **Correção colateral:** a banda do fallback usava os quantis de resíduo do **campeão
+  reprovado**; agora usa os do naive (`ŷ = 0`), que é o modelo publicado. Sem isso a
+  nuvem do fallback (resíduos do naive) e a banda não fechariam.
+- **Persistência:** `monte_carlo_runs` (unique `symbol, model_version`; índice
+  `(symbol, run_at desc)` cobre a FK e a leitura da API; RLS + `authenticated_select`).
+  Migration aplicada via MCP; advisors: só o aviso pré-existente de leaked-password do
+  Auth e "índice ainda não usado" (tabela recém-criada). Sem retenção por ora — ~1,3 MB/dia;
+  se pesar, apagar versões antigas ou mover para Storage com ponteiro.
+- **API:** `GET /api/v1/forecasts/monte-carlo?symbol=` devolve `MonteCarloSeries` em
+  camelCase (`alias_generator=to_camel`), `observed` = últimas 60 velas **fechadas** de
+  `klines_1d` (`drop_open_candles`, oldest-first, segundos UTC); 404 sem nuvem do ativo.
+- **Pendente:** a tabela só recebe dados quando a imagem `crypto-ml` for republicada a
+  partir de `main` (o job do Actions roda a imagem de `main`); até o merge o endpoint
+  responde 404 em produção. Não rodei `train-predict` local para não voltar a `git_sha=local`.
+- **Fase 2 do roadmap (fora):** resíduos condicionados ao regime e `realized` no endpoint.
+
 ## Experimentos
 
 _(rodadas de produção ficam em `model_metrics`; registrar aqui experimentos manuais e os

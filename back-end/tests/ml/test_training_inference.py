@@ -156,6 +156,9 @@ class _StubForecastRepo:
     def upsert_model_metrics(self, record):
         self.metrics.append(record)
 
+    def upsert_monte_carlo(self, rows):
+        return len(rows)
+
 
 class TrainPredictCliTests(unittest.TestCase):
     def test_publishes_champion_and_metrics_with_exit_zero(self):

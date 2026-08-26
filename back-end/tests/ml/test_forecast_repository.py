@@ -78,5 +78,62 @@ class LatestRunPredictionsTests(unittest.TestCase):
         self.assertIn(("symbol", "BTCUSDT"), eq_calls)
 
 
+class MonteCarloTests(unittest.TestCase):
+    def test_upsert_uses_symbol_and_version_as_natural_key(self):
+        supabase, builder = _chainable([])
+        repo = ForecastRepository(supabase=supabase)
+        row = {"symbol": "BTCUSDT", "model_version": "20260826-abc1234-drift", "paths": [[1.0]]}
+        self.assertEqual(repo.upsert_monte_carlo([row, row]), 2)
+        supabase.table.assert_called_with("monte_carlo_runs")
+        _, kwargs = builder.upsert.call_args
+        self.assertEqual(kwargs["on_conflict"], "symbol,model_version")
+
+    def test_empty_rows_do_not_touch_the_database(self):
+        supabase, builder = _chainable([])
+        self.assertEqual(ForecastRepository(supabase=supabase).upsert_monte_carlo([]), 0)
+        builder.upsert.assert_not_called()
+
+    def test_latest_cloud_of_a_symbol(self):
+        supabase, builder = _chainable([{"symbol": "BTCUSDT", "n_simulated": 3}])
+        repo = ForecastRepository(supabase=supabase)
+        self.assertEqual(repo.get_latest_monte_carlo("BTCUSDT")["n_simulated"], 3)
+        supabase.table.assert_called_with("monte_carlo_runs")
+        builder.eq.assert_called_with("symbol", "BTCUSDT")
+        builder.order.assert_called_with("run_at", desc=True)
+
+    def test_never_simulated_symbol_returns_none(self):
+        supabase, _ = _chainable([])
+        self.assertIsNone(ForecastRepository(supabase=supabase).get_latest_monte_carlo("XUSDT"))
+
+
+class LatestRunMetricsTests(unittest.TestCase):
+    def test_no_predictions_yet_returns_none(self):
+        supabase, _ = _chainable([])
+        repo = ForecastRepository(supabase=supabase)
+        self.assertIsNone(repo.get_latest_run_metrics())
+
+    def test_reads_metrics_of_the_version_that_signed_the_latest_run(self):
+        # 1ª consulta: model_version do run mais recente; 2ª: linha em model_metrics.
+        supabase, builder = _chainable([{"model_version": "20260823-abc1234-gbm"}])
+        builder.execute.return_value.data = [{"model_version": "20260823-abc1234-gbm"}]
+        repo = ForecastRepository(supabase=supabase)
+        record = repo.get_latest_run_metrics()
+        self.assertEqual(record["model_version"], "20260823-abc1234-gbm")
+        tables = [call.args[0] for call in supabase.table.call_args_list]
+        self.assertEqual(tables, ["predictions", "model_metrics"])
+        builder.eq.assert_called_with("model_version", "20260823-abc1234-gbm")
+
+    def test_latest_run_without_metrics_row_returns_none(self):
+        supabase, builder = _chainable([])
+        builder.execute.return_value.data = [{"model_version": "20260823-abc1234-gbm"}]
+        # Segunda execução (model_metrics) devolve vazio.
+        builder.execute.side_effect = [
+            type("R", (), {"data": [{"model_version": "20260823-abc1234-gbm"}]})(),
+            type("R", (), {"data": []})(),
+        ]
+        repo = ForecastRepository(supabase=supabase)
+        self.assertIsNone(repo.get_latest_run_metrics())
+
+
 if __name__ == "__main__":
     unittest.main()
