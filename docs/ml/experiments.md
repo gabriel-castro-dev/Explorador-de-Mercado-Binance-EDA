@@ -39,6 +39,23 @@ e o `model_version` gravado em `model_metrics`.
 - `predictions.horizon_days` restrito a 1–7 (migration `20260823230000`).
 - O comando `backtest` anexa relatórios `BT-{data}` abaixo.
 
+## Revisão Codex no PR #20 (2026-08-26)
+
+- **Vela aberta (P1, confirmado no banco: 20 velas com `close_time > now()`):** a coleta
+  diária às 00:05 UTC guarda a vela do dia corrente com minutos de negociação. Agora
+  `build_dataset(..., as_of=run_date)` e `score_predictions(..., as_of=now)` descartam
+  velas com `close_time > as_of` — origem da previsão, targets e realizações usam só
+  velas fechadas. Efeito prático: a origem passa a ser a vela de ontem (fechada), e o
+  h=1 volta a ser um dia de verdade.
+- **Colisão de índices na inferência da GRU (P1):** origens vêm de `build_dataset` e o
+  histórico da GRU de `finalize_training_frame` — RangeIndex distintos que colidem.
+  `GRUModel.predict` agora carrega a identidade da linha pedida em coluna própria
+  (`_requested`/`_origin`) com `ignore_index`, e exige índice único. Não havia
+  disparado porque o campeão real é o drift.
+- **Carteira equal-weight em log (P2):** média de log-retornos é a média geométrica;
+  o motor agora agrega retornos simples por dia e volta a log só para o acumulado.
+  Os relatórios `BT-*` anteriores a esta data subestimam levemente ROI/Sharpe.
+
 ## Experimentos
 
 _(rodadas de produção ficam em `model_metrics`; registrar aqui experimentos manuais e os

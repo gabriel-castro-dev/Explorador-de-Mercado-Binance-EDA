@@ -97,6 +97,37 @@ class GRUCapacityTests(unittest.TestCase):
         self.assertLess(correlation, 0.0)
 
 
+class GRUInferenceIdentityTests(unittest.TestCase):
+    def test_predict_is_immune_to_index_collisions_with_history(self):
+        """Origens de inferência vêm de outro DataFrame: índices inteiros colidem."""
+        train = _linear_frame(days=60, seed=5)  # índice 0..59
+        model = GRUModel(lookback=3, seed=42, params={**_FAST, "max_epochs": 5, "patience": 5}).fit(
+            train, ("feat",), ("y_1",)
+        )
+        # Duas origens novas (datas após o treino) com índices 0 e 1 — colidem
+        # com as duas primeiras linhas do histórico.
+        origins = pd.DataFrame(
+            {
+                "symbol": "AAAUSDT",
+                "timestamp": pd.to_datetime(["2024-03-01", "2024-03-02"], utc=True),
+                "feat": [0.5, -0.5],
+            },
+            index=[0, 1],
+        )
+        colliding = model.predict(origins)
+        disjoint = model.predict(origins.set_axis([1000, 1001]))
+        self.assertEqual(list(colliding.index), [0, 1])
+        np.testing.assert_allclose(colliding.to_numpy(), disjoint.to_numpy())
+
+    def test_duplicate_index_is_rejected(self):
+        train = _linear_frame(days=40, seed=6)
+        model = GRUModel(lookback=3, seed=42, params={**_FAST, "max_epochs": 2, "patience": 2}).fit(
+            train, ("feat",), ("y_1",)
+        )
+        with self.assertRaises(ValueError):
+            model.predict(train.head(2).set_axis([7, 7]))
+
+
 class GRUWalkForwardTests(unittest.TestCase):
     def test_beats_naive_on_drift_market(self):
         config = ml_config(min_history_days=10, lookback_window=5)

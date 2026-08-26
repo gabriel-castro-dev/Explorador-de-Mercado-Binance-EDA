@@ -69,6 +69,30 @@ class TargetConstructionTests(unittest.TestCase):
         self.assertTrue(np.isnan(frame.loc[pd.Timestamp("2024-01-04", tz="UTC"), "log_return"]))
 
 
+class OpenCandleTests(unittest.TestCase):
+    def test_open_candle_is_excluded_as_of_run_time(self):
+        closes = [100.0, 110.0, 121.0, 133.1]
+        features, klines = _single_symbol(closes)
+        klines["close_time"] = (
+            klines["open_time"] + pd.Timedelta(days=1) - pd.Timedelta(milliseconds=1)
+        )
+        # Job às 00:05 do dia da última vela: ela ainda está aberta.
+        as_of = pd.Timestamp("2024-01-04T00:05:00", tz="UTC")
+        dataset = build_dataset(features, klines, dataset_config(horizons=[1, 2]), as_of=as_of)
+        self.assertEqual(dataset.frame["timestamp"].max(), pd.Timestamp("2024-01-03", tz="UTC"))
+        # Sem as_of (ou sem close_time) nada é filtrado — contrato explícito.
+        full = build_dataset(features, klines, dataset_config(horizons=[1, 2]))
+        self.assertEqual(full.frame["timestamp"].max(), pd.Timestamp("2024-01-04", tz="UTC"))
+
+    def test_only_open_candles_raises(self):
+        features, klines = _single_symbol([100.0])
+        klines["close_time"] = klines["open_time"] + pd.Timedelta(days=1)
+        with self.assertRaises(ValueError):
+            build_dataset(
+                features, klines, dataset_config(), as_of=pd.Timestamp("2024-01-01", tz="UTC")
+            )
+
+
 class LeakageInvarianceTests(unittest.TestCase):
     def test_features_are_invariant_to_future_truncation(self):
         """Cortar o futuro não pode mudar nenhuma feature do passado.

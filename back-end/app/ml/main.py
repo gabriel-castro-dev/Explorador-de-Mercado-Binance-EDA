@@ -167,7 +167,7 @@ def run_evaluate(
         return 0
 
     klines = klines_repo.get_latest_klines(Timeframe.D1.value)
-    scores = score_predictions(predictions, klines, config.monitoring)
+    scores = score_predictions(predictions, klines, config.monitoring, as_of=now)
     for score in scores:
         forecast_repo.update_realized_metrics(
             score.model_version, score.to_payload(computed_at=now)

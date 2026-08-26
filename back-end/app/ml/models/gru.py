@@ -35,6 +35,8 @@ _DEFAULT_PARAMS = {
 }
 
 _UNKNOWN_SYMBOL_ID = 0
+_REQUESTED = "_requested"
+_ORIGIN = "_origin"
 
 
 class _GRUNetwork(nn.Module):
@@ -85,7 +87,9 @@ class GRUModel:
         # Contexto para o predict: estritamente linhas de treino (passado).
         self._history = train_frame[["symbol", "timestamp", *self.feature_columns]].copy()
 
-        sequences, symbol_ids, targets, timestamps = self._windows(train_frame, with_targets=True)
+        sequences, symbol_ids, targets, timestamps, _ = self._windows(
+            train_frame, with_targets=True
+        )
         inner_train, inner_val = self._inner_split(timestamps)
 
         self.network = _GRUNetwork(
@@ -140,38 +144,42 @@ class GRUModel:
         return self
 
     def predict(self, frame: pd.DataFrame) -> pd.DataFrame:
+        if not frame.index.is_unique:
+            raise ValueError("GRUModel.predict exige índice único no frame.")
+        columns = ["symbol", "timestamp", *self.feature_columns]
         history = self._history[
             ~pd.MultiIndex.from_frame(self._history[["symbol", "timestamp"]]).isin(
                 pd.MultiIndex.from_frame(frame[["symbol", "timestamp"]])
             )
-        ]
-        combined = pd.concat(
-            [history, frame[["symbol", "timestamp", *self.feature_columns]]],
-            ignore_index=False,
-        ).sort_values(["symbol", "timestamp"])
+        ][columns].assign(**{_REQUESTED: False, _ORIGIN: None})
+        requested = frame[columns].assign(**{_REQUESTED: True, _ORIGIN: list(frame.index)})
+        # ignore_index: histórico e frame vêm de DataFrames distintos, cujos
+        # índices inteiros colidem — a identidade da linha pedida viaja em
+        # coluna própria, nunca no índice.
+        combined = pd.concat([history, requested], ignore_index=True).sort_values(
+            ["symbol", "timestamp"], kind="stable"
+        )
 
-        wanted = frame.index
-        sequences, symbol_ids, _, _ = self._windows(
-            combined, with_targets=False, only_index=set(wanted)
+        sequences, symbol_ids, _, _, origins = self._windows(
+            combined, with_targets=False, only_requested=True
         )
         with torch.no_grad():
             output = self.network(sequences, symbol_ids).numpy()
-        # _windows percorre por símbolo/timestamp; reordena para o índice pedido.
-        ordered = combined.loc[combined.index.isin(wanted)].index
-        result = pd.DataFrame(output, index=ordered, columns=list(self.target_columns))
-        return result.loc[wanted]
+        result = pd.DataFrame(output, index=origins, columns=list(self.target_columns))
+        return result.loc[frame.index]
 
     def _windows(
         self,
         frame: pd.DataFrame,
         with_targets: bool,
-        only_index: set | None = None,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None, pd.Series]:
+        only_requested: bool = False,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None, pd.Series, list]:
         lookback = self.lookback
         sequence_list: list[np.ndarray] = []
         symbol_id_list: list[int] = []
         target_list: list[np.ndarray] = []
         timestamp_list: list[pd.Timestamp] = []
+        origin_list: list = []
 
         for symbol, group in frame.groupby("symbol", sort=True):
             ordered = group.sort_values("timestamp")
@@ -182,9 +190,11 @@ class GRUModel:
                 if with_targets
                 else None
             )
-            for position, (row_index, row) in enumerate(ordered.iterrows()):
-                if only_index is not None and row_index not in only_index:
+            for position, (_, row) in enumerate(ordered.iterrows()):
+                if only_requested and not row[_REQUESTED]:
                     continue
+                if only_requested:
+                    origin_list.append(row[_ORIGIN])
                 start = max(0, position - lookback + 1)
                 window = values[start : position + 1]
                 if len(window) < lookback:
@@ -199,7 +209,7 @@ class GRUModel:
         sequences = torch.from_numpy(np.stack(sequence_list))
         symbol_ids = torch.tensor(symbol_id_list, dtype=torch.long)
         target_tensor = torch.from_numpy(np.stack(target_list)) if with_targets else None
-        return sequences, symbol_ids, target_tensor, pd.Series(timestamp_list)
+        return sequences, symbol_ids, target_tensor, pd.Series(timestamp_list), origin_list
 
     def _inner_split(self, timestamps: pd.Series) -> tuple[np.ndarray, np.ndarray]:
         """Cauda temporal do treino vira validação interna, com embargo = max(h)."""
