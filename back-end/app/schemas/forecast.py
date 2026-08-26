@@ -3,6 +3,7 @@
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
+from pydantic.alias_generators import to_camel
 
 # Piso de amostras de validação para publicar a confiança por símbolo: o mesmo
 # piso de histórico do treino (dataset.min_history_days em app/ml/config/ml.yml —
@@ -71,6 +72,37 @@ class RealizedMetricsOut(BaseModel):
     n_rows: int
     is_degenerate: bool
     per_horizon: dict[str, RealizedHorizonOut]  # keyed by horizon_days ("1".."7")
+
+
+class ObservedPointOut(BaseModel):
+    time: int  # segundos UTC (open_time da vela fechada)
+    value: float  # close
+
+
+class ClassifiedPathsOut(BaseModel):
+    best: int | None = None
+    base: int | None = None
+    worst: int | None = None
+
+
+class MonteCarloSeriesOut(BaseModel):
+    """``MonteCarloSeries`` do front (camelCase): nuvem real simulada pelo job.
+
+    ``paths`` são trajetórias em preço, uma por linha, ``horizon_days`` passos de
+    ``step_seconds`` a partir da linha de corte (última vela fechada de ``observed``).
+    ``simulated_count`` é o número realmente simulado; ``classified`` aponta índices
+    em ``paths`` (maior/menor terminal e o mais próximo da mediana).
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    symbol: str
+    horizon_days: int
+    observed: list[ObservedPointOut]
+    step_seconds: int
+    paths: list[list[float]]
+    simulated_count: int
+    classified: ClassifiedPathsOut | None = None
 
 
 class ForecastMetricsOut(BaseModel):

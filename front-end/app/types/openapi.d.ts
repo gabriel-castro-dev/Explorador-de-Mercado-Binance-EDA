@@ -99,6 +99,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/forecasts/monte-carlo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Monte Carlo
+         * @description Nuvem de Monte Carlo mais recente de um ativo (`monte_carlo_runs`).
+         *
+         *     Trajetórias **reais** simuladas pelo job (bootstrap dos resíduos de validação,
+         *     determinístico por `model_version`); `observed` = últimas 60 velas **fechadas**
+         *     de `klines_1d`, oldest-first. 404 quando o ativo ainda não tem simulação.
+         */
+        get: operations["get_monte_carlo_api_v1_forecasts_monte_carlo_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/insights/daily-reading": {
         parameters: {
             query?: never;
@@ -251,6 +275,15 @@ export interface components {
              * @default true
              */
             hollow_up_candles: boolean;
+        };
+        /** ClassifiedPathsOut */
+        ClassifiedPathsOut: {
+            /** Base */
+            base?: number | null;
+            /** Best */
+            best?: number | null;
+            /** Worst */
+            worst?: number | null;
         };
         /**
          * DailyReadingOut
@@ -505,6 +538,30 @@ export interface components {
             volume: number;
         };
         /**
+         * MonteCarloSeriesOut
+         * @description ``MonteCarloSeries`` do front (camelCase): nuvem real simulada pelo job.
+         *
+         *     ``paths`` são trajetórias em preço, uma por linha, ``horizon_days`` passos de
+         *     ``step_seconds`` a partir da linha de corte (última vela fechada de ``observed``).
+         *     ``simulated_count`` é o número realmente simulado; ``classified`` aponta índices
+         *     em ``paths`` (maior/menor terminal e o mais próximo da mediana).
+         */
+        MonteCarloSeriesOut: {
+            classified?: components["schemas"]["ClassifiedPathsOut"] | null;
+            /** Horizondays */
+            horizonDays: number;
+            /** Observed */
+            observed: components["schemas"]["ObservedPointOut"][];
+            /** Paths */
+            paths: number[][];
+            /** Simulatedcount */
+            simulatedCount: number;
+            /** Stepseconds */
+            stepSeconds: number;
+            /** Symbol */
+            symbol: string;
+        };
+        /**
          * NotificationSettings
          * @description Digest switch, delivery channel and selected topics.
          */
@@ -547,6 +604,13 @@ export interface components {
              * @default false
              */
             volume_movers: boolean;
+        };
+        /** ObservedPointOut */
+        ObservedPointOut: {
+            /** Time */
+            time: number;
+            /** Value */
+            value: number;
         };
         /**
          * PreferencesIn
@@ -813,6 +877,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ForecastMetricsOut"] | null;
+                };
+            };
+        };
+    };
+    get_monte_carlo_api_v1_forecasts_monte_carlo_get: {
+        parameters: {
+            query: {
+                /** @description ex.: BTCUSDT */
+                symbol: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonteCarloSeriesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

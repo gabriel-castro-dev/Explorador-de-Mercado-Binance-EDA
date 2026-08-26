@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import pandas as pd
 from fastapi.testclient import TestClient
 
 from app.auth.verifier import UserClaims
@@ -310,6 +311,88 @@ class ForecastMetricsEndpointTests(ApiTestBase):
         response = client.get("/api/v1/forecasts/metrics")
         self.assertEqual(response.status_code, 200)
         self.assertIsNone(response.json())
+
+
+_MONTE_CARLO_ROW = {
+    "id": 1,
+    "symbol": "BTCUSDT",
+    "model_version": "20260826-abc1234-drift",
+    "run_at": "2026-08-26T19:11:28+00:00",
+    "horizon_days": 2,
+    "step_seconds": 86400,
+    "n_simulated": 3,
+    "paths": [[101.0, 103.0], [99.0, 97.0], [100.0, 100.5]],
+    "classified": {"best": 0, "base": 2, "worst": 1},
+    "created_at": "2026-08-26T19:11:30+00:00",
+}
+
+
+def _closed_kline(day: int, close: float) -> dict:
+    return {
+        "symbol": "BTCUSDT",
+        "open_time": f"2026-08-{day:02d}T00:00:00+00:00",
+        "close_time": f"2026-08-{day:02d}T23:59:59.999+00:00",
+        "close": close,
+    }
+
+
+class MonteCarloEndpointTests(ApiTestBase):
+    def test_requires_a_token(self):
+        client = TestClient(self.app)
+        response = client.get("/api/v1/forecasts/monte-carlo?symbol=BTCUSDT")
+        self.assertEqual(response.status_code, 401)
+
+    def test_symbol_is_required(self):
+        client, _, _ = self._authed_client([])
+        self.assertEqual(client.get("/api/v1/forecasts/monte-carlo").status_code, 422)
+
+    def test_happy_path_matches_monte_carlo_series_contract(self):
+        client, supabase, builder = self._authed_client([])
+        # 1ª consulta: nuvem; 2ª: klines_1d (newest-first, com a vela de hoje aberta).
+        builder.execute.side_effect = [
+            MagicMock(data=[_MONTE_CARLO_ROW]),
+            MagicMock(
+                data=[
+                    {
+                        "symbol": "BTCUSDT",
+                        "open_time": "2026-08-27T00:00:00+00:00",
+                        "close_time": "2026-08-27T23:59:59.999+00:00",
+                        "close": 999.0,
+                    },
+                    _closed_kline(26, 100.0),
+                    _closed_kline(25, 98.0),
+                ]
+            ),
+        ]
+        with patch("app.controllers.forecasts._now") as now:
+            now.return_value = pd.Timestamp("2026-08-27T10:00:00", tz="UTC")
+            response = client.get("/api/v1/forecasts/monte-carlo?symbol=btcusdt")
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["symbol"], "BTCUSDT")
+        self.assertEqual(body["horizonDays"], 2)
+        self.assertEqual(body["stepSeconds"], 86400)
+        self.assertEqual(body["simulatedCount"], 3)
+        self.assertEqual(body["paths"], _MONTE_CARLO_ROW["paths"])
+        self.assertEqual(body["classified"], {"best": 0, "base": 2, "worst": 1})
+        # observed: só velas fechadas, oldest-first, em segundos UTC.
+        self.assertEqual(
+            body["observed"],
+            [
+                {"time": 1787616000, "value": 98.0},
+                {"time": 1787702400, "value": 100.0},
+            ],
+        )
+        tables = [call.args[0] for call in supabase.table.call_args_list]
+        self.assertEqual(tables, ["monte_carlo_runs", "klines_1d"])
+        eq_calls = {call.args for call in builder.eq.call_args_list}
+        self.assertIn(("symbol", "BTCUSDT"), eq_calls)  # upper() aplicado
+
+    def test_symbol_without_a_cloud_is_404(self):
+        client, _, _ = self._authed_client([])
+        response = client.get("/api/v1/forecasts/monte-carlo?symbol=NOPEUSDT")
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("NOPEUSDT", response.json()["detail"])
 
 
 if __name__ == "__main__":

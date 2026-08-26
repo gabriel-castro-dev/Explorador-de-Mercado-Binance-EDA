@@ -426,6 +426,58 @@
         ]
       }
     },
+    "/api/v1/forecasts/monte-carlo": {
+      "get": {
+        "tags": [
+          "forecasts"
+        ],
+        "summary": "Get Monte Carlo",
+        "description": "Nuvem de Monte Carlo mais recente de um ativo (`monte_carlo_runs`).\n\nTrajetórias **reais** simuladas pelo job (bootstrap dos resíduos de validação,\ndeterminístico por `model_version`); `observed` = últimas 60 velas **fechadas**\nde `klines_1d`, oldest-first. 404 quando o ativo ainda não tem simulação.",
+        "operationId": "get_monte_carlo_api_v1_forecasts_monte_carlo_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20,
+              "description": "ex.: BTCUSDT",
+              "title": "Symbol"
+            },
+            "description": "ex.: BTCUSDT"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonteCarloSeriesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/preferences": {
       "get": {
         "tags": [
@@ -591,6 +643,45 @@
         "type": "object",
         "title": "ChartSettings",
         "description": "Chart rendering preferences (accessibility)."
+      },
+      "ClassifiedPathsOut": {
+        "properties": {
+          "best": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best"
+          },
+          "base": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base"
+          },
+          "worst": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worst"
+          }
+        },
+        "type": "object",
+        "title": "ClassifiedPathsOut"
       },
       "DailyReadingOut": {
         "properties": {
@@ -1261,6 +1352,64 @@
         "title": "KlineOut",
         "description": "One candlestick row from klines_{15m,1h,1d}."
       },
+      "MonteCarloSeriesOut": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "horizonDays": {
+            "type": "integer",
+            "title": "Horizondays"
+          },
+          "observed": {
+            "items": {
+              "$ref": "#/components/schemas/ObservedPointOut"
+            },
+            "type": "array",
+            "title": "Observed"
+          },
+          "stepSeconds": {
+            "type": "integer",
+            "title": "Stepseconds"
+          },
+          "paths": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Paths"
+          },
+          "simulatedCount": {
+            "type": "integer",
+            "title": "Simulatedcount"
+          },
+          "classified": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClassifiedPathsOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "horizonDays",
+          "observed",
+          "stepSeconds",
+          "paths",
+          "simulatedCount"
+        ],
+        "title": "MonteCarloSeriesOut",
+        "description": "``MonteCarloSeries`` do front (camelCase): nuvem real simulada pelo job.\n\n``paths`` são trajetórias em preço, uma por linha, ``horizon_days`` passos de\n``step_seconds`` a partir da linha de corte (última vela fechada de ``observed``).\n``simulated_count`` é o número realmente simulado; ``classified`` aponta índices\nem ``paths`` (maior/menor terminal e o mais próximo da mediana)."
+      },
       "NotificationSettings": {
         "properties": {
           "enabled": {
@@ -1314,6 +1463,24 @@
         "type": "object",
         "title": "NotificationTopics",
         "description": "Which daily digest topics the user opted into."
+      },
+      "ObservedPointOut": {
+        "properties": {
+          "time": {
+            "type": "integer",
+            "title": "Time"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "time",
+          "value"
+        ],
+        "title": "ObservedPointOut"
       },
       "PreferencesIn": {
         "properties": {
