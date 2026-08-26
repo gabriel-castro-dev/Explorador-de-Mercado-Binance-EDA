@@ -56,6 +56,28 @@ e o `model_version` gravado em `model_metrics`.
   o motor agora agrega retornos simples por dia e volta a log só para o acumulado.
   Os relatórios `BT-*` anteriores a esta data subestimam levemente ROI/Sharpe.
 
+## Iteração 2 — Fase 0: rodada vigente sai do run local (2026-08-26)
+
+- **Causa da primeira falha no Actions** (run 33003574807, 39 s): `python -m app.ml.main`
+  chama `setup_logging()` → `get_settings()`, e o `Settings` monolítico exige
+  `BINANCE_API_KEY`/`SECRET` mesmo em um job que só fala com o Supabase. Os jobs
+  `ml-forecast`/`ml-evaluate` eram os únicos criados sem essas variáveis. Correção:
+  o workflow passa os mesmos secrets aos dois jobs (contorno idêntico ao do job de
+  features). Refatorar o `Settings` para exigir as chaves só quando o `BinanceClient`
+  conecta fica registrado como melhoria — não entrou para não tocar a ingestão.
+- **Evidência** (run [33003779118](https://github.com/gabriel-castro-dev/crypto-forecasting-app/actions/runs/33003779118),
+  5 min 6 s, `workflow_dispatch` a partir do branch com a correção; imagem `crypto-ml`
+  de `main`): `model_version = 20260826-7eb4400-drift`, `git_sha` real, 112 linhas
+  (16 símbolos × 7 horizontes), gate liberado (skill h1 +0,0020 — igual ao run local),
+  20 velas abertas ignoradas. Ranking mantido: drift > ridge > gru > gbm.
+- **Vela aberta refletida no banco:** última vela fechada de `klines_1d` = 2026-08-25,
+  `target_time` de h=1 = 2026-08-26 → origem = ontem, como previsto na revisão do PR #20.
+- **Pendente (fora do controle deste branch):** (a) confirmar o cron das 00:05 UTC de
+  27/08 (`gh run list --workflow crypto_jobs.yml`); (b) `ml-evaluate` manual — o
+  `workflow_dispatch` foi negado pela sessão; os runs de 23/08 e 24/08 já têm ≥ 20
+  alvos realizados, e o cron de segunda 02:00 UTC preenche `realized_metrics` de
+  qualquer forma. Nenhum dos dois bloqueia as fases seguintes.
+
 ## Experimentos
 
 _(rodadas de produção ficam em `model_metrics`; registrar aqui experimentos manuais e os
