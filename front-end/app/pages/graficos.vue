@@ -3,7 +3,7 @@ import { useMediaQuery } from '@vueuse/core'
 import type { FeatureRow, Kline, Timeframe } from '~/types/api'
 import { LIMIT_BY_TF, STALE_AFTER_HOURS_BY_TF, STORAGE_KEYS, symbolName } from '~/utils/constants'
 import { latestOpenTime } from '~/utils/chart-mapping'
-import { latestSnapshotAt, sortTickers } from '~/utils/tickers'
+import { latestSnapshotAt, sortTickers, trackedSymbols } from '~/utils/tickers'
 import { formatUtc } from '~/utils/format'
 
 /**
@@ -29,8 +29,9 @@ watch([() => symbols.data.value, () => tickers.status.value], () => {
   if (symbol.value || !symbols.data.value.length) return
   if (tickers.status.value === 'pending') return
   const byVolume = sortTickers(tickers.data.value, 'quote_volume', 'desc').map(t => t.symbol)
-  const known = new Set(symbols.data.value.map(s => s.symbol))
-  const first = byVolume.find(s => known.has(s)) ?? symbols.data.value[0]?.symbol ?? null
+  const tracked = trackedSymbols(symbols.data.value)
+  const known = new Set(tracked.map(s => s.symbol))
+  const first = byVolume.find(s => known.has(s)) ?? tracked[0]?.symbol ?? null
   void ensureSymbol(first)
 }, { immediate: true })
 

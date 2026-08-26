@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Ticker24h } from '../../app/types/api'
-import { filterTickers, latestSnapshotAt, sortTickers, spreadPercent, tickerHasData } from '../../app/utils/tickers'
+import { filterTickers, latestSnapshotAt, sortTickers, spreadPercent, tickerHasData, trackedSymbols } from '../../app/utils/tickers'
 
 function t(symbol: string, quote: number | null, pct: number | null = 0, openTime = '2026-08-19T14:00:00Z'): Ticker24h {
   return { symbol, open_time: openTime, close_time: openTime, quote_volume: quote, price_change_percent: pct, last_price: quote === null ? null : 1 }
@@ -47,5 +47,20 @@ describe('latestSnapshotAt / spreadPercent / tickerHasData', () => {
   it('tickerHasData is false when every key field is null', () => {
     expect(tickerHasData(t('X', null, null))).toBe(false)
     expect(tickerHasData(t('Y', 1))).toBe(true)
+  })
+})
+
+describe('trackedSymbols', () => {
+  it('mantém só os símbolos com candles, na ordem recebida', () => {
+    const rows = [
+      { symbol: 'BTCUSDT', tracked: true },
+      { symbol: 'CTSIUSDT', tracked: false },
+      { symbol: 'ETHUSDT', tracked: true },
+    ]
+    expect(trackedSymbols(rows).map(s => s.symbol)).toEqual(['BTCUSDT', 'ETHUSDT'])
+  })
+
+  it('lista vazia sem rastreados', () => {
+    expect(trackedSymbols([{ symbol: 'CTSIUSDT', tracked: false }])).toEqual([])
   })
 })
