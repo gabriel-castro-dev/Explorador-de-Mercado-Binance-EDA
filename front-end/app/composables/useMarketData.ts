@@ -48,10 +48,15 @@ export function useFeatures(symbol: MaybeRefOrGetter<string | null>, tf: MaybeRe
   )
 }
 
-/** Último snapshot 24h de todos os ativos (um fetch; filtragem/ordenação no cliente). */
+/**
+ * Último snapshot 24h dos ativos rastreados (um fetch; filtragem/ordenação no
+ * cliente). `tracked=true` é obrigatório aqui: sem ele a API devolve todo par
+ * USDT visto pelo job (~735), o que contradiz o "top 20" do Mercado e faria o
+ * Início pedir klines/features de centenas de ativos sem candles.
+ */
 export function useTickers24h() {
   const api = useApi()
-  return useAsyncData<Ticker24h[]>('tickers24h', () => api.get('/api/v1/tickers/24h'), {
+  return useAsyncData<Ticker24h[]>('tickers24h', () => api.get('/api/v1/tickers/24h', { params: { query: { tracked: true } } }), {
     default: () => [],
   })
 }

@@ -1,4 +1,4 @@
-import type { Ticker24h } from '~/types/api'
+import type { SymbolRow, Ticker24h } from '~/types/api'
 
 export type TickerSortKey = keyof Ticker24h
 export type SortDir = 'asc' | 'desc'
@@ -54,4 +54,13 @@ export function spreadPercent(t: Pick<Ticker24h, 'bid_price' | 'ask_price'>): nu
 /** Um ticker "sem dados": todos os campos numéricos relevantes nulos. */
 export function tickerHasData(t: Ticker24h): boolean {
   return t.last_price != null || t.quote_volume != null || t.price_change_percent != null
+}
+
+/**
+ * Universo de análise: só símbolos com candles em `klines_1d` (`tracked` vem
+ * derivado no back-end). A tabela `symbols` guarda todo par USDT visto pelo job
+ * de tickers, sem candles nem features — oferecê-los no seletor abre "Sem dados".
+ */
+export function trackedSymbols(rows: readonly SymbolRow[]): SymbolRow[] {
+  return rows.filter(s => s.tracked)
 }

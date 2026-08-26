@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { SymbolRow, Ticker24h } from '~/types/api'
 import { symbolName } from '~/utils/constants'
+import { trackedSymbols } from '~/utils/tickers'
 import { arrowOf, formatPercent, formatPrice, toneOf } from '~/utils/format'
 
 type Status = 'idle' | 'pending' | 'success' | 'error'
@@ -16,7 +17,8 @@ const model = defineModel<string | null>({ default: null })
 interface Item { symbol: string, label: string, name: string | undefined, last: number | null, pct: number | null }
 
 const tickerBySymbol = computed(() => new Map(props.tickers.map(t => [t.symbol, t])))
-const items = computed<Item[]>(() => props.symbols.map((s) => {
+// Só o universo com candles entra na lista (Design.md §10: sem dado, sem opção).
+const items = computed<Item[]>(() => trackedSymbols(props.symbols).map((s) => {
   const t = tickerBySymbol.value.get(s.symbol)
   return { symbol: s.symbol, label: s.symbol, name: symbolName(s.symbol), last: t?.last_price ?? null, pct: t?.price_change_percent ?? null }
 }))
@@ -102,7 +104,7 @@ function toneClass(pct: number | null) {
 
       <template #content-bottom>
         <div class="num flex items-center justify-between border-t border-default px-3 py-1.5 text-[11px] text-dimmed">
-          <span>{{ items.length }} ativos · top 20 por volume 24h</span>
+          <span>{{ items.length }} ativos rastreados · candles diários</span>
           <span>↑↓ · Enter</span>
         </div>
       </template>
