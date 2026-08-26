@@ -13,7 +13,7 @@ App de **forecasting de criptomoedas**. O projeto nasceu como um pipeline local 
 | Banco de dados | Supabase (PostgreSQL) | Supabase Cloud | **Em produção** |
 | API REST | FastAPI + Supabase Auth (JWT/JWKS, RLS) | **Railway** (container do GHCR; decisão de 2026-08-23 — docs antigas citam VM/Render) | v1 implementada; deploy em configuração |
 | Preferências do usuário | Firestore via Firebase Admin SDK | Firebase (plano Spark) | **Em produção** |
-| ML / Forecasting | A definir (candidatos: Scikit-Learn, Prophet) | GitHub Actions / Runner | Planejado |
+| ML / Forecasting | Escada baseline→LightGBM→GRU (PyTorch), modelo global multi-horizonte (ADR-0004) | GitHub Actions (imagem `crypto-ml`; jobs `ml-forecast` diário e `ml-evaluate` semanal) | **Implementado (v1)** |
 | Front-end | **Vue 3 + Nuxt 4 (SPA estática) + Nuxt UI v4/Tailwind v4 + Lightweight Charts v5** (não React) | **Vercel** (estático) | v1 funcional em `front-end/`; deploy pendente |
 
 ### Estado atual (2026-08)
@@ -23,6 +23,7 @@ App de **forecasting de criptomoedas**. O projeto nasceu como um pipeline local 
 - `back-end/jobs.py` — dispatcher CLI dos jobs de ingestão (`five-minutes` → orderbook tickers, `hourly` → ticker 24h, `daily` → klines 15m/1h/1d; exit 0/1/2), rodando em Docker via `.github/workflows/crypto_jobs.yml` (com Cloudflare WARP para contornar geoblock da Binance). A lógica vive em `app/ingestion/`.
 - `back-end/app/feature_engineering/main.py` — orquestrador do pipeline de features: calcula indicadores técnicos por timeframe (15m/1h/24h) conforme `app/feature_engineering/config/features.yml` e aplica a política de retenção.
 - `back-end/backfill_features.py` — backfill histórico em memória: busca klines da Binance por símbolo, calcula as features e persiste **só as features** (klines cruas apenas em `klines_1d`, que é permanente e guarda o target do ML). CLI: `--timeframe {15m,1h,1d}`, `--start-days`, `--symbols`. A lista fixa de símbolos vive em `back-end/app/feature_engineering/config/symbols.yml`.
+- `back-end/app/ml/main.py` — CLI do pipeline de ML (`train-predict` → treina candidatos/gate/publica em `predictions`+`model_metrics`; `evaluate` → erro realizado + alarme de degradação; `backtest` → relatório econômico). Config em `app/ml/config/ml.yml`; dependências no grupo `ml` do pyproject (`uv sync --group ml`); decisões em `docs/adr/0004-ml-global-multi-horizonte.md`.
 
 ### Arquitetura do back-end
 

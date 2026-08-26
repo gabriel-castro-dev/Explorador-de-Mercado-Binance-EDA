@@ -18,11 +18,11 @@ Entregue: `front-end/` com auth completa, dashboard (candles + indicadores + res
 
 **Atenção:** mensagens de erro genéricas em falha de login (segurança); warm-up de indicadores (`null`s) precisa de tratamento visual, não tela quebrada; latência da API → skeletons. Skills úteis: `web-design-guidelines` (auditoria), `frontend-design`.
 
-## 3. ML / Forecasting
+## 3. ML / Forecasting — ✅ v1 implementada (2026-08-23, branch `feat/front-end-v3`)
 
-**Escopo:** treino agendado (GitHub Actions, imagem própria como os jobs); modelos baseline primeiro (ex.: Prophet / sklearn) sobre as tabelas `features_*`; novas tabelas `predictions` e `model_metrics` (versão do modelo, MAE/RMSE por rodada); endpoint `GET /api/v1/forecasts` na API existente.
+Entregue (ADR-0004; Prophet descartado): pacote `back-end/app/ml/` com dataset anti-leakage (split temporal por data + embargo, scaler train-only, features escala-invariantes), escada de candidatos (naive/drift/ridge → LightGBM → GRU) avaliada em walk-forward, gate de publicação vs naive com fallback marcado, backtest econômico com custos, tabelas `predictions`/`model_metrics` (RLS + `authenticated_select`, migration aplicada), `GET /api/v1/forecasts`, imagem `crypto-ml` + jobs no Actions (`ml-forecast` diário após o feature engineering; `ml-evaluate` semanal com alarme de degradação). Log de experimentos em `docs/ml/experiments.md`.
 
-**Atenção:** **split temporal** no treino/validação (nunca aleatório — data leakage em séries temporais); RLS nas tabelas novas (o event trigger já liga RLS automaticamente, mas a policy `authenticated_select` precisa ser criada explicitamente); migrations versionadas em `back-end/supabase/migrations/`; escrita só via service_role dos jobs; rastreabilidade modelo→métrica→previsão.
+**Iterações futuras:** dados externos (sentimento, on-chain, macro — maior ganho segundo a literatura, exigem pipelines novos de coleta); timeframe `1h`; front consumindo `/forecasts` (curva + banda à direita da linha de corte).
 
 ## 4. Deploy em nuvem
 

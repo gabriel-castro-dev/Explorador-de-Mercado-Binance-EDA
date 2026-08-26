@@ -52,7 +52,7 @@ autorização acontece na API, sempre a partir do token validado do Supabase.
 | **Banco de Dados** | Supabase | PostgreSQL persistente com RLS para séries históricas, indicadores, previsões e versionamento de modelos. | Supabase Cloud | Em produção |
 | **Preferências do Usuário** | Firestore (Firebase Admin SDK) | Documento por usuário (id = `sub` do Supabase) com dados pessoais, notificações e acessibilidade. Regras negam acesso de cliente: só a API escreve. | Firebase (Spark) | Em produção |
 | **Back-end (API)** | FastAPI | Endpoints REST (klines, features, symbols, tickers 24h, preferences), autenticação via Supabase Auth (JWT/JWKS + RLS) e ponte de identidade com o Firebase, Swagger. | Railway (container do GHCR) | Em desenvolvimento (v1 pronta; deploy em configuração) |
-| **Machine Learning** | Scikit-Learn / Prophet (a definir) | Scripts de treinamento e geração de projeções diárias de preços. | GitHub Actions / Runner | Planejado |
+| **Machine Learning** | LightGBM + GRU (PyTorch) com baselines e gate vs naive | Treino diário global multi-símbolo, previsões 1–7 dias com banda de incerteza, monitoramento semanal do erro realizado (ADR-0004). | GitHub Actions (imagem `crypto-ml`) | Implementado (v1) |
 | **Front-end** | Vue 3 + Nuxt 4 + Nuxt UI (Tailwind v4) + Lightweight Charts | Dashboard SPA: login/cadastro (Supabase Auth), gráfico de candles com indicadores, resumo 24h e tabela de mercado; consome a API com Bearer token. | Vercel (estático) | Em desenvolvimento (v1 funcional; deploy pendente) |
 
 ---
@@ -80,8 +80,11 @@ autorização acontece na API, sempre a partir do token validado do Supabase.
 * **Retenção Programada:** Limpeza automática por tabela conforme política declarada em YAML (ex.: klines 15m por 7 dias, features 24h permanentes).
 
 ### Inteligência Artificial & Computação
-* **Predição de Séries Temporais:** Modelos estatísticos/ML atualizados periodicamente utilizando todo o histórico de dados limpos. *(planejado)*
-* **Versionamento:** Rastreabilidade completa de métricas de performance (MAE, RMSE) por versão de modelo gerado. *(planejado)*
+* **Predição de Séries Temporais:** Modelo **global multi-símbolo** treinado diariamente sobre as `features_24h` (5 anos de histórico), prevendo **log-retornos de 1–7 dias** por ativo com banda de incerteza. Escada empírica de candidatos — baselines (naive/drift/ridge) → LightGBM → GRU (PyTorch) → ensemble — avaliados em walk-forward com split temporal por data e embargo (ADR-0004).
+* **Gate de publicação:** o campeão só publica se **bater o naive (random walk)** na validação (skill score > 0); caso contrário sai um fallback naive marcado (`is_fallback`) — o dashboard nunca fica sem curva e a degradação fica visível.
+* **Versionamento:** rastreabilidade completa modelo→métrica→previsão via `model_version = {data}-{git_sha}-{tipo}` (tabelas `predictions` e `model_metrics`, com MAE/RMSE/acurácia direcional por horizonte e por símbolo).
+* **Monitoramento:** job semanal compara previsões passadas com o close realizado, grava `realized_metrics` e **falha alto** (exit ≠ 0) se o modelo perder do naive por rodadas consecutivas.
+* **Backtest econômico:** comando `backtest` simula long/flat com taxa+slippage vs buy-and-hold (Sharpe, ROI, max drawdown) — sem lookahead.
 
 ### Entrega de Dados (API REST)
 * **Endpoints REST:** Histórico de preços, indicadores, ativos rastreados, snapshot 24h e preferências do usuário. Previsões chegam com o marco de ML.
@@ -191,11 +194,19 @@ crypto-forecasting-app/
 │   │   ├── auth/                    # Verificação local de JWT do Supabase (JWKS)
 │   │   ├── schemas/                 # Response models Pydantic
 │   │   ├── core/                    # Vocabulário compartilhado (Timeframe)
-│   │   └── feature_engineering/     # Pipeline offline de features + retenção
-│   │       ├── config/              # features.yml (features por timeframe + retenção)
-│   │       ├── pipelines/           # Orquestração por fonte (klines, orderbook, ticker)
-│   │       ├── transforms/          # Indicadores técnicos (SMA, RSI, Bollinger, ATR…)
-│   │       └── retention/           # Limpeza programada por retenção
+│   │   ├── feature_engineering/     # Pipeline offline de features + retenção
+│   │   │   ├── config/              # features.yml (features por timeframe + retenção)
+│   │   │   ├── pipelines/           # Orquestração por fonte (klines, orderbook, ticker)
+│   │   │   ├── transforms/          # Indicadores técnicos (SMA, RSI, Bollinger, ATR…)
+│   │   │   └── retention/           # Limpeza programada por retenção
+│   │   └── ml/                      # Pipeline de forecasting (ADR-0004)
+│   │       ├── config/ml.yml        # horizontes, splits/embargo, gate, hiperparâmetros
+│   │       ├── dataset.py · splits.py · scaling.py   # dataset anti-leakage
+│   │       ├── models/              # baselines, LightGBM, GRU, ensemble
+│   │       ├── evaluation/          # métricas, walk-forward, gate de publicação
+│   │       ├── backtest/            # simulação long/flat com custos
+│   │       ├── training.py · inference.py · monitoring.py
+│   │       └── main.py              # CLI: train-predict · evaluate · backtest
 │   ├── tests/                       # Suíte pytest (offline, sem .env)
 │   ├── jobs.py                      # Dispatcher CLI dos jobs de coleta
 │   ├── backfill_features.py         # Backfill histórico em memória (persiste só features)
@@ -213,6 +224,7 @@ crypto-forecasting-app/
 │   ├── agents/                      # Convenções para agentes (issue tracker, labels, domínio)
 │   └── adr/                         # Decisões de arquitetura (ADRs)
 ├── CONTEXT.md                       # Glossário do domínio (timeframe, kline, feature, warm-up…)
+├── docs/ml/experiments.md           # Log de experimentos do marco de ML
 ├── front-end/                       # Dashboard Nuxt 4 (SPA estática)
 │   ├── app/
 │   │   ├── pages/                   # login, signup, confirm-email, confirm, forgot/reset-password, index (dashboard), mercado
@@ -226,10 +238,8 @@ crypto-forecasting-app/
 │   ├── openapi/openapi.json         # schema exportado do back-end (input do codegen)
 │   ├── test/unit/                   # Vitest (utils, cliente da API)
 │   └── nuxt.config.ts · package.json · .env.example
-└── ml_models/                       # Modelos preditivos e métricas — planejado
+└── ...
 ```
-
-> `ml_models/` ainda não existe no repo — é o próximo marco.
 
 ## Instalação & Setup de Desenvolvimento
 
@@ -284,6 +294,11 @@ uv run python jobs.py five-minutes   # orderbook tickers
 uv run python jobs.py hourly         # ticker 24h
 uv run python jobs.py daily          # klines 15m/1h/1d
 uv run python -m app.feature_engineering.main   # features + retenção
+
+# ML (exige o grupo de dependências: uv sync --group ml)
+uv run python -m app.ml.main train-predict   # treina candidatos, gate, publica previsões
+uv run python -m app.ml.main backtest        # backtest econômico do campeão (não persiste)
+uv run python -m app.ml.main evaluate        # erro realizado + alarme de degradação
 ```
 
 #### Backfill histórico (one-off)
@@ -368,6 +383,7 @@ Documentação interativa completa: `/docs` (Swagger) e `/redoc` com a API rodan
 | GET | `/api/v1/klines/{timeframe}` | Candles OHLCV, mais recente primeiro | path: `15m`\|`1h`\|`1d` · query: `symbol` (obrigatório), `limit` (1-1000, padrão 200), `start`/`end` (ISO 8601) |
 | GET | `/api/v1/features/{timeframe}` | Indicadores técnicos calculados | idem klines; `24h` é aceito como sinônimo de `1d` |
 | GET | `/api/v1/tickers/24h` | Snapshot 24h mais recente por ativo | query: `symbol` (opcional) |
+| GET | `/api/v1/forecasts` | Curva de previsão 1–7 dias do run mais recente (preço + banda + `is_fallback`) | query: `symbol` (opcional) |
 | GET | `/api/v1/preferences` | Preferências do usuário autenticado (padrões se nunca salvou) | — |
 | PUT | `/api/v1/preferences` | Salva as preferências (idempotente) | corpo: `display_name`, `phone` (E.164), `notifications`, `chart` |
 | POST | `/api/v1/auth/firebase-token` | Custom token do Firebase para o usuário autenticado | — |
