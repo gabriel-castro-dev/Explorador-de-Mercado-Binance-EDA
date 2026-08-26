@@ -12,29 +12,59 @@
           "symbols"
         ],
         "summary": "List Symbols",
-        "description": "Ativos rastreados pela plataforma, em ordem alfabética.",
+        "description": "Ativos conhecidos pela plataforma, em ordem alfabética.\n\nCada item traz `tracked`: `true` quando o ativo faz parte do universo de\nanálise (tem candles/indicadores); `false` para pares vistos só pelo\njob de tickers 24h.",
         "operationId": "list_symbols_api_v1_symbols_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tracked",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filtro opcional: `true` devolve só os ativos rastreados (com candles em klines_1d); `false`, só os sem candles.",
+              "title": "Tracked"
+            },
+            "description": "Filtro opcional: `true` devolve só os ativos rastreados (com candles em klines_1d); `false`, só os sem candles."
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/SymbolOut"
                   },
-                  "type": "array",
                   "title": "Response List Symbols Api V1 Symbols Get"
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/klines/{timeframe}": {
@@ -298,6 +328,24 @@
               "title": "Symbol"
             },
             "description": "ex.: BTCUSDT"
+          },
+          {
+            "name": "tracked",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filtro opcional: `true` devolve só os ativos rastreados (com candles).",
+              "title": "Tracked"
+            },
+            "description": "Filtro opcional: `true` devolve só os ativos rastreados (com candles)."
           }
         ],
         "responses": {
@@ -1224,14 +1272,19 @@
               }
             ],
             "title": "Created At"
+          },
+          "tracked": {
+            "type": "boolean",
+            "title": "Tracked"
           }
         },
         "type": "object",
         "required": [
-          "symbol"
+          "symbol",
+          "tracked"
         ],
         "title": "SymbolOut",
-        "description": "One tracked symbol from the symbols reference table."
+        "description": "One symbol from the symbols reference table (via symbols_with_tracking).\n\n``tracked`` is required (never null): true when the symbol belongs to\nthe analysis universe, i.e. it has candles in klines_1d. The symbols\ntable also holds every pair ever seen by the ticker job, which has no\ncandles/features."
       },
       "Ticker24hOut": {
         "properties": {
