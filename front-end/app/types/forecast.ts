@@ -1,10 +1,10 @@
 /**
  * Contrato de previsões consumido pela UI (Design.md §11).
  *
- * A API de forecasts ainda **não existe** em `openapi/openapi.json` — estes tipos
- * descrevem o que a tela precisa receber, não um endpoint publicado. Nada aqui
- * gera número: os componentes só desenham o que chega por props.
- * Ver `useForecasts()` para o estado vazio honesto enquanto o marco de ML não sai.
+ * `GET /api/v1/forecasts` devolve a curva 1–7 dias por ativo; o mapeamento para
+ * estes tipos está em `utils/forecast-mapping.ts`. Nada aqui gera número: os
+ * componentes só desenham o que chega por props. Horizontes que o modelo não
+ * publica (mensal, anual) chegam `null` e a UI mostra `—`.
  */
 
 export type HorizonKey = 'daily' | 'weekly' | 'monthly' | 'yearly'
