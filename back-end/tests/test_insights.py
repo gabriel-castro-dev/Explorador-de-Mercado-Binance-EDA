@@ -109,6 +109,19 @@ class InsightsServiceTests(unittest.TestCase):
         self.assertIn("Maiores volumes em 24 horas", context)
         self.assertIn("Maior volatilidade", context)
 
+    def test_build_context_formats_numbers_in_pt_br(self):
+        """O prompt manda copiar os números como fornecidos: vírgula decimal, ponto de milhar."""
+        service, _, _ = _service()
+        context = service.build_context()
+        self.assertIn("SYM5USDT 4,50%", context)  # (5 - 2) * 1.5
+        self.assertIn("SYM0USDT 6.000.000", context)  # 1_000_000 * 6
+        self.assertNotIn("4.50%", context)
+        self.assertNotIn("6000000", context)
+
+    def test_system_prompt_demands_digits_not_words(self):
+        self.assertIn("algarismos", insights_service.SYSTEM_PROMPT)
+        self.assertIn("8,67%", insights_service.SYSTEM_PROMPT)
+
     def test_build_context_requires_a_minimum_of_market_data(self):
         service, _, _ = _service(snapshots=_snapshots(2))
         with self.assertRaises(InsightsUnavailableError):
@@ -220,6 +233,16 @@ class ReadingValidationTests(unittest.TestCase):
 
     def test_rejects_text_longer_than_the_budget(self):
         self.assertFalse(_is_valid_reading("O mercado de cripto subiu de novo. " * 40))
+
+    def test_thousands_separators_do_not_count_as_sentences(self):
+        """Regressão: '38.407.882' fazia 4 frases valerem 8 e a leitura era rejeitada."""
+        text = (
+            "O painel monitora 200 ativos e nas últimas 24 horas 96 subiram enquanto 104 caíram. "
+            "As maiores variações foram BMTUSDT com 61,97% de alta e SCRTUSDT com 21,88% de queda. "
+            "Os maiores volumes em USDT ficaram com PUMPUSDT em 38.407.882 e PEPEUSDT em 37.751.517. "
+            "A maior volatilidade apareceu em HEMIUSDT com 21,92% e PLUMEUSDT com 8,67%."
+        )
+        self.assertTrue(_is_valid_reading(text))
 
     def test_rejects_more_than_six_sentences(self):
         self.assertFalse(_is_valid_reading("O mercado de cripto nao parou. " * 7))

@@ -30,13 +30,20 @@ logger = logging.getLogger(__name__)
 DISCLAIMER = "Leia as previsões como cenários, não como recomendação de compra ou venda."
 
 # Estilo definido com o usuário (2026-08-22): clareza acima de tudo.
+# 2026-08-26: os modelos passaram a escrever números por extenso ("oito
+# vírgula sessenta e sete por cento"), o que trava a leitura; a regra dos
+# algarismos é explícita e com exemplo porque a proibição de hífens e
+# símbolos estava empurrando o modelo para o extenso.
 SYSTEM_PROMPT = (
     "Você escreve a leitura diária de um painel de análise de criptomoedas, em português do Brasil. "
     "Regras obrigatórias: não use hífens nem travessões como pontuação; não use emojis; não use listas, "
     "escreva um único parágrafo corrido de no máximo cinco frases. Foque em clareza: traduza os números "
     "recebidos em conhecimento rápido, dizendo o que eles significam para quem acompanha o mercado. "
     "Use apenas os números fornecidos na mensagem do usuário, exatamente como fornecidos. É proibido "
-    "inventar, extrapolar ou arredondar dados que não estejam na mensagem. Não recomende compra nem venda. "
+    "inventar, extrapolar ou arredondar dados que não estejam na mensagem. "
+    "Escreva todo número em algarismos, nunca por extenso: escreva 8,67% e não oito vírgula sessenta "
+    "e sete por cento; escreva 38.407.882 USDT e não trinta e oito milhões. Use o símbolo % para "
+    "porcentagens e vírgula como separador decimal. Não recomende compra nem venda. "
     "Não inclua avisos legais, o painel já os exibe. Não cumprimente nem se despeça, entregue só a leitura."
 )
 
@@ -47,7 +54,9 @@ _INSUFFICIENT_DATA_THRESHOLD = 5
 # e cortado no meio. Nada disso pode virar leitura do dia nem entrar no cache.
 _MAX_READING_CHARS = 900
 _MAX_READING_SENTENCES = 6
-_SENTENCE_END = re.compile(r"[.!?…]+")
+# Fim de frase = pontuação seguida de espaço ou fim do texto. O ponto de
+# milhar ("38.407.882") vem colado em dígito e não conta como frase.
+_SENTENCE_END = re.compile(r"[.!?…]+(?=\s|$)")
 # Marcadores de raciocínio em inglês (o prompt pede pt-BR; o modelo pensa em inglês).
 _ENGLISH_MARKERS = (
     "we need",
@@ -91,19 +100,30 @@ def _looks_english(text: str) -> bool:
     return pt_hits < 2 and not has_accent
 
 
-def _is_valid_reading(text: str) -> bool:
-    """True quando o texto serve como leitura do dia (pt-BR, curta, sem raciocínio)."""
+def _rejection_reason(text: str) -> Optional[str]:
+    """Motivo pelo qual o texto não serve como leitura, ou None quando serve."""
     stripped = text.strip()
     if not stripped:
-        return False
+        return "texto vazio"
     if "<think" in stripped.lower():
-        return False
+        return "raciocínio vazado (<think>)"
     if len(stripped) > _MAX_READING_CHARS:
-        return False
+        return f"{len(stripped)} caracteres (máximo {_MAX_READING_CHARS})"
     sentences = [part for part in _SENTENCE_END.split(stripped) if part.strip()]
     if len(sentences) > _MAX_READING_SENTENCES:
+        return f"{len(sentences)} frases (máximo {_MAX_READING_SENTENCES})"
+    if _looks_english(stripped):
+        return "texto em inglês"
+    return None
+
+
+def _is_valid_reading(text: str) -> bool:
+    """True quando o texto serve como leitura do dia (pt-BR, curta, sem raciocínio)."""
+    reason = _rejection_reason(text)
+    if reason:
+        logger.warning("Leitura rejeitada pelo validador: %s. Início: %.80r", reason, text)
         return False
-    return not _looks_english(stripped)
+    return True
 
 
 class InsightsUnavailableError(RuntimeError):
@@ -119,9 +139,14 @@ def _today_utc() -> str:
 
 
 def _fmt(value: object, decimals: int = 2) -> str:
+    """Número no formato pt-BR (vírgula decimal, ponto de milhar).
+
+    O prompt manda copiar os números "exatamente como fornecidos", então o
+    contexto já chega na forma em que deve aparecer na tela.
+    """
     if not isinstance(value, (int, float)):
         return "sem dado"
-    return f"{value:.{decimals}f}"
+    return f"{value:,.{decimals}f}".replace(",", "\0").replace(".", ",").replace("\0", ".")
 
 
 def build_attempts(settings: Settings) -> list[GatewayAttempt]:
