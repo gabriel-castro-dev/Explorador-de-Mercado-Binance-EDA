@@ -27,8 +27,10 @@ class Settings(BaseSettings):
     RETRY_DELAY: int = 5
     SUPABASE_URL: str
     SUPABASE_KEY: str
-    BINANCE_API_KEY: str
-    BINANCE_API_SECRET: str
+    # Exigidas só por quem conecta à Binance (BinanceClient valida na conexão):
+    # jobs de ML, feature engineering e API falam apenas com o Supabase.
+    BINANCE_API_KEY: Optional[str] = None
+    BINANCE_API_SECRET: Optional[str] = None
     # Real Binance by default: market-data endpoints are public and the ML
     # dataset needs real prices/volumes (the testnet keeps ~2 weeks of
     # synthetic history only). Set USE_TESTNET=true explicitly for testnet.
