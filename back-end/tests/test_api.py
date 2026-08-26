@@ -138,11 +138,28 @@ class FeaturesEndpointTests(ApiTestBase):
 
 
 class SymbolsEndpointTests(ApiTestBase):
-    def test_lists_symbols(self):
-        client, _, _ = self._authed_client([{"symbol": "ADAUSDT"}])
+    def test_lists_symbols_with_tracked_flag(self):
+        rows = [
+            {"symbol": "ACEUSDT", "created_at": None, "tracked": True},
+            {"symbol": "ADAUSDT", "created_at": None, "tracked": False},
+        ]
+        client, supabase, builder = self._authed_client(rows)
         response = client.get("/api/v1/symbols")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), [{"symbol": "ADAUSDT", "created_at": None}])
+        self.assertEqual(response.json(), rows)  # ordem alfabética preservada
+        supabase.table.assert_called_once_with("symbols_with_tracking")
+        builder.eq.assert_not_called()
+
+    def test_tracked_is_required_in_the_contract(self):
+        schema = self.app.openapi()["components"]["schemas"]["SymbolOut"]
+        self.assertIn("tracked", schema["required"])
+        self.assertEqual(schema["properties"]["tracked"]["type"], "boolean")
+
+    def test_tracked_query_filters_at_the_source(self):
+        client, _, builder = self._authed_client([])
+        response = client.get("/api/v1/symbols?tracked=true")
+        self.assertEqual(response.status_code, 200)
+        builder.eq.assert_called_once_with("tracked", True)
 
 
 class TickersEndpointTests(ApiTestBase):
@@ -153,6 +170,24 @@ class TickersEndpointTests(ApiTestBase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()[0]["last_price"], 50000.0)
         builder.eq.assert_called_once_with("symbol", "BTCUSDT")
+
+    def test_all_symbols_come_from_the_latest_view(self):
+        rows = [
+            {"symbol": "BTCUSDT", "open_time": "2026-08-19 00:00:00", "tracked": True},
+            {"symbol": "ZZZUSDT", "open_time": "2026-08-19 00:00:00", "tracked": False},
+        ]
+        client, supabase, builder = self._authed_client(rows)
+        response = client.get("/api/v1/tickers/24h")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([r["symbol"] for r in response.json()], ["BTCUSDT", "ZZZUSDT"])
+        self.assertNotIn("tracked", response.json()[0])  # contrato do snapshot não muda
+        supabase.table.assert_called_once_with("ticker_24hr_latest")
+        builder.limit.assert_not_called()
+
+    def test_tracked_query_filters_at_the_source(self):
+        client, _, builder = self._authed_client([])
+        self.assertEqual(client.get("/api/v1/tickers/24h?tracked=true").status_code, 200)
+        builder.eq.assert_called_once_with("tracked", True)
 
 
 _FORECAST_ROW = {

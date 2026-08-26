@@ -84,10 +84,17 @@ class Ticker24hOut(_Row):
 
 
 class SymbolOut(_Row):
-    """One tracked symbol from the symbols reference table."""
+    """One symbol from the symbols reference table (via symbols_with_tracking).
+
+    ``tracked`` is required (never null): true when the symbol belongs to
+    the analysis universe, i.e. it has candles in klines_1d. The symbols
+    table also holds every pair ever seen by the ticker job, which has no
+    candles/features.
+    """
 
     symbol: str
     created_at: Optional[datetime] = None
+    tracked: bool
 
 
 class HealthOut(BaseModel):

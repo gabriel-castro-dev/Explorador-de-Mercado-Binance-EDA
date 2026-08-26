@@ -192,7 +192,9 @@ class InsightsService:
 
     def build_context(self) -> str:
         """Aggregate the day's snapshot into a compact numeric brief (pt-BR)."""
-        snapshots = self.tickers_repo.get_latest_24h_snapshots()
+        # Só o universo de análise: os demais pares não têm features_24h
+        # (a consulta por ativo abaixo seria desperdiçada em ~700 símbolos).
+        snapshots = self.tickers_repo.get_latest_24h_snapshots(tracked=True)
         rows = [s for s in snapshots if isinstance(s.get("price_change_percent"), (int, float))]
         if len(rows) < _INSUFFICIENT_DATA_THRESHOLD:
             raise InsightsUnavailableError("not enough market data to summarize")

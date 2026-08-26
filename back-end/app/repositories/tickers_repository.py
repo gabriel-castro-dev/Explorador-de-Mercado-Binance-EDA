@@ -35,22 +35,25 @@ class TickersRepository(BaseRepository):
         return pd.DataFrame(response.data)
 
     def get_latest_24h_snapshots(
-        self, symbol: str | None = None, scan_limit: int = 200
+        self, symbol: str | None = None, tracked: bool | None = None
     ) -> list[dict]:
         """Latest ticker_24hr_history row per symbol (or for one symbol).
 
-        PostgREST has no DISTINCT ON, so fetch the newest scan_limit rows
-        ordered by open_time desc and keep the first occurrence per symbol
-        (~20 tracked symbols -> 200 rows is ample headroom).
+        Reads the ``ticker_24hr_latest`` view (``DISTINCT ON (symbol)`` done
+        in Postgres), so every symbol of the newest batch is returned no
+        matter how many rows the job writes per run.
+
+        Args:
+            symbol: Restrict to one symbol.
+            tracked: When given, keep only symbols with (``True``) or without
+                (``False``) candles in ``klines_1d``; ``None`` returns all.
         """
-        query = self.supabase.table("ticker_24hr_history").select("*").order("open_time", desc=True)
+        query = self.supabase.table("ticker_24hr_latest").select("*")
         if symbol:
-            return query.eq("symbol", symbol).limit(1).execute().data
-        rows = query.limit(scan_limit).execute().data
-        latest: dict[str, dict] = {}
-        for row in rows:
-            latest.setdefault(row["symbol"], row)
-        return list(latest.values())
+            query = query.eq("symbol", symbol)
+        if tracked is not None:
+            query = query.eq("tracked", tracked)
+        return query.order("symbol").execute().data
 
     def upsert_ticker_24hr(self, df: pd.DataFrame) -> int:
         """Upsert normalized 24-hour ticker rows keyed on (symbol, open_time).

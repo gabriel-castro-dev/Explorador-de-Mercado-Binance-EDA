@@ -4,11 +4,24 @@ from app.repositories.base import BaseRepository
 
 
 class SymbolsRepository(BaseRepository):
-    """Data access for the tracked-symbols reference table."""
+    """Data access for the symbols reference table.
 
-    def list_symbols(self) -> list[dict]:
-        """All tracked symbols in alphabetical order."""
-        return self.supabase.table("symbols").select("*").order("symbol").execute().data
+    Reads come from the ``symbols_with_tracking`` view, which adds the
+    data-derived ``tracked`` flag (the symbol has candles in ``klines_1d``);
+    writes still target the base ``symbols`` table.
+    """
+
+    def list_symbols(self, tracked: bool | None = None) -> list[dict]:
+        """All symbols in alphabetical order, each with its ``tracked`` flag.
+
+        Args:
+            tracked: When given, keep only tracked (``True``) or untracked
+                (``False``) symbols; ``None`` returns the whole table.
+        """
+        query = self.supabase.table("symbols_with_tracking").select("*")
+        if tracked is not None:
+            query = query.eq("tracked", tracked)
+        return query.order("symbol").execute().data
 
     def ensure_symbols(self, symbols: list[str]) -> None:
         """Insert any missing symbols so FK constraints on data tables hold.
