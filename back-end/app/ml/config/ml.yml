@@ -1,0 +1,59 @@
+# Configuração do pipeline de ML (marco 3).
+#
+# O contrato anti-leakage vive aqui: horizons define os targets multi-horizonte
+# (log-retornos t -> t+h) e embargo_days precisa cobrir o MAIOR horizonte para
+# que nenhum target do treino "enxergue" datas da validação/teste. O loader
+# (app.ml.config) valida essa invariante — editar com cuidado.
+
+dataset:
+  timeframe: "1d"            # v1 usa só features_24h + close de klines_1d
+  horizons: [1, 2, 3, 4, 5, 6, 7]
+  lookback_window: 60        # janela de entrada dos modelos sequenciais (dias)
+  min_history_days: 120      # mínimo de linhas válidas de treino p/ manter um símbolo
+  max_null_fraction: 0.3     # coluna com mais nulls que isso NO TREINO é descartada
+
+splits:
+  embargo_days: 7            # >= max(horizons); gap entre treino e cada janela de validação
+  validation_days: 180       # período total de validação (fim da série)
+  n_folds: 4                 # walk-forward expanding-window: 4 janelas de 45 dias
+
+training:
+  seed: 42                   # reprodutibilidade: mesma seed => mesmas previsões
+  clip_sigma: 10.0           # features escaladas são clipadas em ±clip_sigma desvios
+
+gate:
+  # Campeão só publica se bater o naive (random walk) na validação:
+  # skill_score = 1 - MAE_modelo / MAE_naive, no horizonte h=1.
+  min_skill_score: 0.0
+
+backtest:
+  fee_pct: 0.001             # 0,1% por trade (taxa spot da Binance)
+  slippage_pct: 0.0005       # 5 bps de slippage na execução
+
+monitoring:
+  lookback_days: 30          # janela de runs recentes a pontuar contra o realizado
+  degradation_runs: 3        # K versões seguidas com skill realizado < 0 → job falha (exit 1)
+  min_scored_rows: 20        # mínimo de previsões realizadas p/ pontuar uma versão
+
+# Hiperparâmetros por modelo candidato (repassados aos construtores).
+# Ajustes ficam registrados em docs/ml/experiments.md.
+models:
+  gbm:
+    n_estimators: 400
+    learning_rate: 0.05
+    num_leaves: 31
+    min_child_samples: 20
+    subsample: 0.9
+    subsample_freq: 1
+    colsample_bytree: 0.9
+    reg_lambda: 1.0
+  gru:
+    hidden_size: 64
+    embedding_dim: 8
+    dropout: 0.2
+    learning_rate: 0.001
+    weight_decay: 0.0001
+    batch_size: 256
+    max_epochs: 100
+    patience: 10
+    inner_val_fraction: 0.15

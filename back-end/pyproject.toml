@@ -26,6 +26,21 @@ dev = [
     "pytest>=9.1.1",
     "ruff>=0.16.3",
 ]
+# Grupo do pipeline de ML (treino/inferência): não entra na imagem da API.
+ml = [
+    "lightgbm>=4.5",
+    "scikit-learn>=1.6",
+    "torch>=2.6",
+]
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+
+# Roda em runners CPU do GitHub Actions; o índice CPU evita ~2GB de wheels CUDA.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [tool.ruff]
 line-length = 100

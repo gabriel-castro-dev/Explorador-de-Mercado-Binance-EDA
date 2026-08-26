@@ -328,6 +328,69 @@
         }
       }
     },
+    "/api/v1/forecasts": {
+      "get": {
+        "tags": [
+          "forecasts"
+        ],
+        "summary": "List Forecasts",
+        "description": "Curva de previsão (1–7 dias) do run mais recente, por ativo.\n\nOrdenada por símbolo e horizonte; `[]` quando ainda não há previsões.",
+        "operationId": "list_forecasts_api_v1_forecasts_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ex.: BTCUSDT",
+              "title": "Symbol"
+            },
+            "description": "ex.: BTCUSDT"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ForecastOut"
+                  },
+                  "title": "Response List Forecasts Api V1 Forecasts Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/preferences": {
       "get": {
         "tags": [
@@ -809,6 +872,67 @@
         ],
         "title": "FirebaseTokenOut",
         "description": "A short-lived Firebase custom token for the signed-in user.\n\nExchange it for an ID token at the Identity Toolkit:\n``POST accounts:signInWithCustomToken?key=<web api key>``."
+      },
+      "ForecastOut": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "model_version": {
+            "type": "string",
+            "title": "Model Version"
+          },
+          "run_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Run At"
+          },
+          "target_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Target Time"
+          },
+          "horizon_days": {
+            "type": "integer",
+            "title": "Horizon Days"
+          },
+          "predicted_close": {
+            "type": "number",
+            "title": "Predicted Close"
+          },
+          "predicted_log_return": {
+            "type": "number",
+            "title": "Predicted Log Return"
+          },
+          "pred_lower": {
+            "type": "number",
+            "title": "Pred Lower"
+          },
+          "pred_upper": {
+            "type": "number",
+            "title": "Pred Upper"
+          },
+          "is_fallback": {
+            "type": "boolean",
+            "title": "Is Fallback"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "model_version",
+          "run_at",
+          "target_time",
+          "horizon_days",
+          "predicted_close",
+          "predicted_log_return",
+          "pred_lower",
+          "pred_upper",
+          "is_fallback"
+        ],
+        "title": "ForecastOut",
+        "description": "One forecast point of the latest run: symbol × target_time × horizon.\n\n``is_fallback=True`` means the champion failed the publication gate and the\ncurve is the naive random walk — the UI must surface the degraded state."
       },
       "HTTPValidationError": {
         "properties": {
@@ -1351,6 +1475,10 @@
     {
       "name": "tickers",
       "description": "Snapshot 24h mais recente por ativo."
+    },
+    {
+      "name": "forecasts",
+      "description": "Previsões de preço do modelo de ML (curva de 1–7 dias com banda de incerteza, run mais recente). `is_fallback=true` indica curva naive publicada porque o campeão não passou no gate."
     },
     {
       "name": "auth",

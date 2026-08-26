@@ -35,8 +35,8 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "back-end/uv.lock"
 
-      - name: Sync dependencies (incl. dev group)
-        run: uv sync --frozen
+      - name: Sync dependencies (incl. dev e ml groups)
+        run: uv sync --frozen --group ml
 
       - name: Run tests
         run: uv run pytest
@@ -74,6 +74,7 @@ jobs:
               - 'back-end/Dockerfile.jobs'
               - 'back-end/Dockerfile.feature-engineering'
               - 'back-end/Dockerfile.api'
+              - 'back-end/Dockerfile.ml'
               - 'back-end/pyproject.toml'
               - 'back-end/uv.lock'
 
@@ -93,6 +94,8 @@ jobs:
             image: crypto-feature-engineering
           - dockerfile: Dockerfile.api
             image: crypto-api
+          - dockerfile: Dockerfile.ml
+            image: crypto-ml
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3

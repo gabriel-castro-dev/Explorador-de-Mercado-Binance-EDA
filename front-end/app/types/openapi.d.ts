@@ -51,6 +51,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/forecasts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Forecasts
+         * @description Curva de previsão (1–7 dias) do run mais recente, por ativo.
+         *
+         *     Ordenada por símbolo e horizonte; `[]` quando ainda não há previsões.
+         */
+        get: operations["list_forecasts_api_v1_forecasts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/insights/daily-reading": {
         parameters: {
             query?: never;
@@ -309,6 +331,41 @@ export interface components {
             expires_in: number;
         };
         /**
+         * ForecastOut
+         * @description One forecast point of the latest run: symbol × target_time × horizon.
+         *
+         *     ``is_fallback=True`` means the champion failed the publication gate and the
+         *     curve is the naive random walk — the UI must surface the degraded state.
+         */
+        ForecastOut: {
+            /** Horizon Days */
+            horizon_days: number;
+            /** Is Fallback */
+            is_fallback: boolean;
+            /** Model Version */
+            model_version: string;
+            /** Pred Lower */
+            pred_lower: number;
+            /** Pred Upper */
+            pred_upper: number;
+            /** Predicted Close */
+            predicted_close: number;
+            /** Predicted Log Return */
+            predicted_log_return: number;
+            /**
+             * Run At
+             * Format: date-time
+             */
+            run_at: string;
+            /** Symbol */
+            symbol: string;
+            /**
+             * Target Time
+             * Format: date-time
+             */
+            target_time: string;
+        };
+        /**
          * HealthOut
          * @description Service liveness response.
          */
@@ -560,6 +617,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FeatureRowOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_forecasts_api_v1_forecasts_get: {
+        parameters: {
+            query?: {
+                /** @description ex.: BTCUSDT */
+                symbol?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastOut"][];
                 };
             };
             /** @description Validation Error */

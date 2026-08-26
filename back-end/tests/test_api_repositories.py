@@ -18,7 +18,7 @@ from app.repositories.tickers_repository import TickersRepository
 def _chainable(rows):
     """Supabase query-builder fake: every method chains, execute() returns rows."""
     builder = MagicMock()
-    for method in ("select", "eq", "gte", "lte", "order", "limit"):
+    for method in ("select", "eq", "gte", "lte", "order", "limit", "range", "upsert"):
         getattr(builder, method).return_value = builder
     builder.execute.return_value.data = rows
     supabase = MagicMock()
@@ -78,6 +78,30 @@ class Latest24hSnapshotsTests(unittest.TestCase):
         self.assertEqual(len(latest), 2)
         btc = next(row for row in latest if row["symbol"] == "BTCUSDT")
         self.assertEqual(btc["open_time"], "2026-01-02 00:00:00")
+
+
+class GetAllFeaturesTests(unittest.TestCase):
+    def test_reads_feature_table_paginated(self):
+        supabase, builder = _chainable([{"symbol": "BTCUSDT", "timestamp": "2026-01-01"}])
+        repo = FeaturesRepository(supabase=supabase)
+        frame = repo.get_all_features(Timeframe.D1)
+        supabase.table.assert_called_with("features_24h")
+        builder.range.assert_called_once_with(0, 999)
+        self.assertEqual(len(frame), 1)
+
+    def test_pages_until_short_page(self):
+        full_page = [{"symbol": "BTCUSDT", "timestamp": str(i)} for i in range(1000)]
+        supabase, builder = _chainable(full_page)
+        # Primeira página cheia, segunda curta: o loop precisa parar na segunda.
+        first = MagicMock()
+        first.data = full_page
+        second = MagicMock()
+        second.data = full_page[:10]
+        builder.execute.side_effect = [first, second]
+        repo = FeaturesRepository(supabase=supabase)
+        frame = repo.get_all_features(Timeframe.D1)
+        self.assertEqual(len(frame), 1010)
+        self.assertEqual(builder.range.call_count, 2)
 
 
 class SymbolsRepositoryTests(unittest.TestCase):

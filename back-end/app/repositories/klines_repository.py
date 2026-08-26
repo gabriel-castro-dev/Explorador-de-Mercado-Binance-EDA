@@ -12,8 +12,6 @@ logger = logging.getLogger(__name__)
 
 
 class KlinesRepository(BaseRepository):
-    _BATCH_SIZE = 500
-    _READ_PAGE_SIZE = 1000
     _COLUMN_MAP = {
         "Open_Time": "open_time",
         "Open": "open",
@@ -60,24 +58,14 @@ class KlinesRepository(BaseRepository):
         cutoff. Paging with ``range`` keeps the read complete regardless of
         table size.
         """
-        pages: list[list[dict]] = []
-        offset = 0
-        while True:
-            response = (
+        rows = self._fetch_all(
+            lambda: (
                 self.supabase.table(f"klines_{timeframe}")
                 .select("*")
                 .order("symbol")
                 .order("open_time")
-                .range(offset, offset + self._READ_PAGE_SIZE - 1)
-                .execute()
             )
-            page = response.data
-            if page:
-                pages.append(page)
-            if len(page) < self._READ_PAGE_SIZE:
-                break
-            offset += self._READ_PAGE_SIZE
-        rows = [row for page in pages for row in page]
+        )
         return pd.DataFrame(rows)
 
     def query_klines(
@@ -104,11 +92,9 @@ class KlinesRepository(BaseRepository):
 
     def upsert_klines(self, interval: str, df: pd.DataFrame) -> int:
         prepared = self.normalize_klines(df)
-        for start in range(0, len(prepared), self._BATCH_SIZE):
-            self.supabase.table(f"klines_{interval}").upsert(
-                self._to_records(prepared.iloc[start : start + self._BATCH_SIZE]),
-                on_conflict="symbol,open_time",
-            ).execute()
+        self._upsert_in_batches(
+            f"klines_{interval}", self._to_records(prepared), on_conflict="symbol,open_time"
+        )
         logger.info("%s klines persistidos em klines_%s.", len(prepared), interval)
         return len(prepared)
 
