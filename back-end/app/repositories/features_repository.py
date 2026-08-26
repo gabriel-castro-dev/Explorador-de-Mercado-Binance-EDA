@@ -15,7 +15,22 @@ logger = logging.getLogger(__name__)
 class FeaturesRepository(BaseRepository):
     _TABLES = {"15m": "features_15m", "1h": "features_1h", "24h": "features_24h"}
     _GENERATED_COLUMNS = frozenset({"macd", "macd_histogram", "bb_width"})
-    _UPSERT_BATCH_SIZE = 500
+
+    def get_all_features(self, timeframe: Timeframe) -> pd.DataFrame:
+        """Read the whole feature table, paginating past the PostgREST row cap.
+
+        Unbounded selects are truncated at the project's max-rows setting; the
+        ML dataset would silently lose every symbol after the cutoff.
+        """
+        rows = self._fetch_all(
+            lambda: (
+                self.supabase.table(timeframe.feature_table)
+                .select("*")
+                .order("symbol")
+                .order("timestamp")
+            )
+        )
+        return pd.DataFrame(rows)
 
     def query_features(
         self,
@@ -49,9 +64,9 @@ class FeaturesRepository(BaseRepository):
             raise ValueError(f"Timeframe não suportado: {timeframe!r}.") from error
         sanitized = df.drop(columns=self._GENERATED_COLUMNS, errors="ignore")
         try:
-            for start in range(0, len(sanitized), self._UPSERT_BATCH_SIZE):
-                payload = self._to_records(sanitized.iloc[start : start + self._UPSERT_BATCH_SIZE])
-                self.supabase.table(table).upsert(payload, on_conflict="symbol,timestamp").execute()
+            self._upsert_in_batches(
+                table, self._to_records(sanitized), on_conflict="symbol,timestamp"
+            )
             logger.info("%s features salvas em %s.", len(sanitized), table)
         except Exception:
             logger.exception("Falha ao salvar features em %s.", table)
