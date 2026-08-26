@@ -98,6 +98,32 @@ e o `model_version` gravado em `model_metrics`.
 - Ficou para depois: `n` gravado como int na origem (mudaria o jsonb das rodadas antigas);
   `realized_metrics` continua `null` até o `ml-evaluate` rodar.
 
+## Iteração 2 — Fase 3: Monte Carlo fase 1 (2026-08-26)
+
+- **Simulação no job** (`app/ml/montecarlo.py`): cada trajetória reamostra **uma linha
+  inteira de validação** (resíduos de h=1..7 da mesma origem) sobre o drift previsto —
+  preserva a forma de trajetórias reais em vez de sortear um erro i.i.d. por passo, e a
+  marginal por horizonte continua sendo a distribuição empírica dos resíduos, então os
+  quantis 10/90 da nuvem reproduzem `pred_lower/pred_upper` por construção (teste
+  `test_cloud_agrees_with_uncertainty_band`, tolerância de 25 % da largura da banda em log).
+  Seed = CRC32 da `model_version`; 1000 trajetórias/símbolo (`montecarlo.n_paths`);
+  preços arredondados a 6 algarismos significativos (~80 KB por linha em jsonb).
+- **Correção colateral:** a banda do fallback usava os quantis de resíduo do **campeão
+  reprovado**; agora usa os do naive (`ŷ = 0`), que é o modelo publicado. Sem isso a
+  nuvem do fallback (resíduos do naive) e a banda não fechariam.
+- **Persistência:** `monte_carlo_runs` (unique `symbol, model_version`; índice
+  `(symbol, run_at desc)` cobre a FK e a leitura da API; RLS + `authenticated_select`).
+  Migration aplicada via MCP; advisors: só o aviso pré-existente de leaked-password do
+  Auth e "índice ainda não usado" (tabela recém-criada). Sem retenção por ora — ~1,3 MB/dia;
+  se pesar, apagar versões antigas ou mover para Storage com ponteiro.
+- **API:** `GET /api/v1/forecasts/monte-carlo?symbol=` devolve `MonteCarloSeries` em
+  camelCase (`alias_generator=to_camel`), `observed` = últimas 60 velas **fechadas** de
+  `klines_1d` (`drop_open_candles`, oldest-first, segundos UTC); 404 sem nuvem do ativo.
+- **Pendente:** a tabela só recebe dados quando a imagem `crypto-ml` for republicada a
+  partir de `main` (o job do Actions roda a imagem de `main`); até o merge o endpoint
+  responde 404 em produção. Não rodei `train-predict` local para não voltar a `git_sha=local`.
+- **Fase 2 do roadmap (fora):** resíduos condicionados ao regime e `realized` no endpoint.
+
 ## Experimentos
 
 _(rodadas de produção ficam em `model_metrics`; registrar aqui experimentos manuais e os
