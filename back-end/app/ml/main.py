@@ -24,7 +24,12 @@ import pandas as pd
 from app.core.timeframe import Timeframe
 from app.ml.backtest.engine import run_backtest
 from app.ml.config import MLConfig, load_ml_config
-from app.ml.inference import build_fallback_rows, build_forecast_rows, build_metrics_record
+from app.ml.inference import (
+    build_fallback_rows,
+    build_forecast_rows,
+    build_metrics_record,
+    build_monte_carlo_rows,
+)
 from app.ml.monitoring import detect_degradation, score_predictions
 from app.ml.training import run_training
 from app.repositories.features_repository import FeaturesRepository
@@ -73,6 +78,15 @@ def run_train_predict(
     forecast_repo.upsert_predictions(rows)
     forecast_repo.upsert_model_metrics(
         build_metrics_record(outcome, now, git_sha, published_fallback)
+    )
+    # Nuvem de Monte Carlo com a MESMA model_version da curva publicada.
+    forecast_repo.upsert_monte_carlo(
+        build_monte_carlo_rows(
+            outcome,
+            run_at=now,
+            n_paths=config.montecarlo.n_paths,
+            published_fallback=published_fallback,
+        )
     )
     logger.info(
         "Rodada publicada: model_version=%s, campeão=%s, skill=%.4f, fallback=%s.",

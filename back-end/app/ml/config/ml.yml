@@ -35,6 +35,9 @@ monitoring:
   degradation_runs: 3        # K versões seguidas com skill realizado < 0 → job falha (exit 1)
   min_scored_rows: 20        # mínimo de previsões realizadas p/ pontuar uma versão
 
+montecarlo:
+  n_paths: 1000              # trajetórias por símbolo (bootstrap dos resíduos de validação)
+
 # Hiperparâmetros por modelo candidato (repassados aos construtores).
 # Ajustes ficam registrados em docs/ml/experiments.md.
 models:

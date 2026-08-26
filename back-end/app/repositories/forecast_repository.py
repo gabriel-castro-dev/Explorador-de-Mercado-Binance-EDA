@@ -12,6 +12,8 @@ class ForecastRepository(BaseRepository):
     _PREDICTIONS_TABLE = "predictions"
     _METRICS_TABLE = "model_metrics"
     _PREDICTIONS_CONFLICT = "symbol,target_time,horizon_days,model_version"
+    _MONTE_CARLO_TABLE = "monte_carlo_runs"
+    _MONTE_CARLO_CONFLICT = "symbol,model_version"
 
     def upsert_predictions(self, rows: list[dict]) -> int:
         """Idempotent upsert of forecast rows (same run twice → same table state)."""
@@ -51,6 +53,27 @@ class ForecastRepository(BaseRepository):
         if symbol is not None:
             query = query.eq("symbol", symbol)
         return query.execute().data
+
+    def upsert_monte_carlo(self, rows: list[dict]) -> int:
+        """Idempotent upsert of one Monte Carlo cloud per (symbol, model_version)."""
+        if not rows:
+            logger.warning("Nenhuma nuvem de Monte Carlo para persistir.")
+            return 0
+        self._upsert_in_batches(self._MONTE_CARLO_TABLE, rows, self._MONTE_CARLO_CONFLICT)
+        logger.info("%s nuvens persistidas em %s.", len(rows), self._MONTE_CARLO_TABLE)
+        return len(rows)
+
+    def get_latest_monte_carlo(self, symbol: str) -> dict | None:
+        """Most recent cloud (max run_at) of one symbol; ``None`` when never simulated."""
+        rows = (
+            self.supabase.table(self._MONTE_CARLO_TABLE)
+            .select("*")
+            .eq("symbol", symbol)
+            .order("run_at", desc=True)
+            .limit(1)
+            .execute()
+        ).data
+        return rows[0] if rows else None
 
     def get_model_type(self, model_version: str) -> str | None:
         """``model_metrics.model_type`` of one version (``None`` when the row is missing)."""
