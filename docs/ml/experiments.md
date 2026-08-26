@@ -78,6 +78,26 @@ e o `model_version` gravado em `model_metrics`.
   alvos realizados, e o cron de segunda 02:00 UTC preenche `realized_metrics` de
   qualquer forma. Nenhum dos dois bloqueia as fases seguintes.
 
+## Iteração 2 — Fases 1 e 2: métricas na API e `model_type` na curva (2026-08-26)
+
+- `GET /api/v1/forecasts/metrics` devolve `ForecastMetricsOut` construído **do mesmo
+  registro que o job grava** (`build_metrics_record` → JSON → `from_record`); o teste
+  `tests/ml/test_forecast_metrics_schema.py` quebra se gravação e leitura driftarem.
+  Renomeação só na borda: `mae` → `mae_log_return`, `baseline_mae` →
+  `baseline_mae_log_return`; `gate` sobe de `hyperparams` para o topo; `n` vira `int`
+  (o jsonb guarda `173.0` porque `_jsonable` converte tudo em float — não mexi na gravação).
+- **Confiança** = `round(dir_acc × 100)` em h=1; `null` com `n < 120` (`MIN_CONFIDENCE_SAMPLES`
+  = `dataset.min_history_days`, com teste que impede os dois de divergirem). Na rodada
+  vigente isso deixa `PLUMEUSDT` (n=38) sem confiança e 3 ativos com previsão sem entrada
+  em `per_symbol` (não estavam na validação) — o front mostra `—`, como combinado.
+  Leitura honesta: as acurácias direcionais ficam entre 43 % e 58 %, i.e., ao redor do
+  acaso; a coluna informa o que o modelo sabe, não promete acerto.
+- `model_type` entrou em `ForecastOut` sem migration: uma consulta extra a
+  `model_metrics` por request (um run = uma `model_version`); `null` se a linha faltar.
+- OpenAPI exportado e `openapi.d.ts` regenerado; front `lint/typecheck/test` verdes.
+- Ficou para depois: `n` gravado como int na origem (mudaria o jsonb das rodadas antigas);
+  `realized_metrics` continua `null` até o `ml-evaluate` rodar.
+
 ## Experimentos
 
 _(rodadas de produção ficam em `model_metrics`; registrar aqui experimentos manuais e os
