@@ -219,11 +219,15 @@ jobs:
         run: docker pull "$ML_IMAGE"
 
       # Sem WARP: este job só fala com o Supabase (nenhuma chamada à Binance).
+      # As chaves da Binance entram só porque o Settings monolítico (config.py)
+      # as exige em setup_logging(); o job nunca as usa.
       - name: Treinar candidatos, aplicar gate e publicar previsões
         run: |
           docker run --rm \
             -e SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
             -e SUPABASE_KEY="${{ secrets.SUPABASE_KEY }}" \
+            -e BINANCE_API_KEY="${{ secrets.BINANCE_API_KEY }}" \
+            -e BINANCE_API_SECRET="${{ secrets.BINANCE_API_SECRET }}" \
             -e GITHUB_SHA="${{ github.sha }}" \
             "$ML_IMAGE"
 
@@ -256,4 +260,6 @@ jobs:
           docker run --rm \
             -e SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
             -e SUPABASE_KEY="${{ secrets.SUPABASE_KEY }}" \
+            -e BINANCE_API_KEY="${{ secrets.BINANCE_API_KEY }}" \
+            -e BINANCE_API_SECRET="${{ secrets.BINANCE_API_SECRET }}" \
             "$ML_IMAGE" python -m app.ml.main evaluate
