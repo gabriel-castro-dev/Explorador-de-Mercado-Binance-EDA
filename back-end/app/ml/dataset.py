@@ -72,15 +72,27 @@ def horizon_of(target: str) -> int:
     return int(digits)
 
 
-def build_dataset(features: pd.DataFrame, klines: pd.DataFrame, config: DatasetConfig) -> MLDataset:
+def build_dataset(
+    features: pd.DataFrame,
+    klines: pd.DataFrame,
+    config: DatasetConfig,
+    as_of: pd.Timestamp | None = None,
+) -> MLDataset:
     """Join features_24h × klines_1d e derivação de X (escala-invariante) e y.
 
     Preserva nulls (warm-up, gaps, colunas ausentes no histórico) e linhas sem
     target completo — o recorte acontece em :func:`finalize_training_frame`,
     que precisa conhecer as datas de treino para não vazar.
+
+    ``as_of`` exclui a vela ainda aberta: o job roda logo após 00:00 UTC e a
+    coleta guarda a vela do dia corrente com minutos de negociação — um
+    "close" parcial que não pode virar origem de previsão nem target.
     """
     if features.empty or klines.empty:
         raise ValueError("features e klines não podem ser vazios.")
+    klines = drop_open_candles(klines, as_of)
+    if klines.empty:
+        raise ValueError("Nenhuma vela fechada até as_of.")
 
     feature_rows = _prepare(features, timestamp_column="timestamp", required=("symbol",))
     candle_rows = _prepare(
@@ -117,6 +129,16 @@ def build_dataset(features: pd.DataFrame, klines: pd.DataFrame, config: DatasetC
         feature_columns=feature_columns,
         target_columns=target_columns,
     )
+
+
+def drop_open_candles(klines: pd.DataFrame, as_of: pd.Timestamp | None) -> pd.DataFrame:
+    """Mantém apenas velas com ``close_time <= as_of`` (sem close_time, mantém tudo)."""
+    if as_of is None or "close_time" not in klines.columns:
+        return klines
+    closed = pd.to_datetime(klines["close_time"], utc=True) <= as_of
+    if not closed.all():
+        logger.info("%s velas ainda abertas em %s ignoradas.", int((~closed).sum()), as_of)
+    return klines[closed]
 
 
 def finalize_training_frame(

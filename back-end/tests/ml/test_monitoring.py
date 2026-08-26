@@ -69,6 +69,24 @@ class ScorePredictionsTests(unittest.TestCase):
         [score] = score_predictions(predictions, klines, _CONFIG)
         self.assertEqual(score.n_rows, 2)
 
+    def test_open_candle_is_not_a_realization(self):
+        klines = _klines({"AAAUSDT": [100.0, 110.0, 121.0]})
+        klines["close_time"] = (
+            klines["open_time"] + pd.Timedelta(days=1) - pd.Timedelta(milliseconds=1)
+        )
+        predictions = [
+            _prediction("AAAUSDT", "2026-08-02", 100.0, 0.01),
+            _prediction("AAAUSDT", "2026-08-03", 110.0, 0.01),  # vela de 08-03 ainda aberta
+        ]
+        as_of = pd.Timestamp("2026-08-03T00:05:00", tz="UTC")
+        [score] = score_predictions(
+            predictions,
+            klines,
+            MonitoringConfig(lookback_days=30, degradation_runs=2, min_scored_rows=1),
+            as_of=as_of,
+        )
+        self.assertEqual(score.n_rows, 1)
+
     def test_version_below_min_scored_rows_is_skipped(self):
         klines = _klines({"AAAUSDT": [100.0, 110.0]})
         predictions = [_prediction("AAAUSDT", "2026-08-02", 100.0, 0.01)]  # só 1 linha

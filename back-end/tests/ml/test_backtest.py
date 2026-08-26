@@ -79,8 +79,13 @@ class BacktestPortfolioTests(unittest.TestCase):
         )
         always_long = pd.Series(1.0, index=frame.index)
         result = run_backtest(frame, always_long, _FREE)
-        expected_log = (0.10 + -0.02) / 2 + (0.20 + 0.04) / 2
-        self.assertAlmostEqual(result.roi, np.exp(expected_log) - 1.0, places=12)
+        # Equal-weight em retornos SIMPLES: média dos retornos brutos por dia.
+        day1 = (np.expm1(0.10) + np.expm1(-0.02)) / 2
+        day2 = (np.expm1(0.20) + np.expm1(0.04)) / 2
+        self.assertAlmostEqual(result.roi, (1 + day1) * (1 + day2) - 1.0, places=12)
+        # E é estritamente maior que a média geométrica (log) — o viés apontado.
+        geometric = np.exp((0.10 + -0.02) / 2 + (0.20 + 0.04) / 2) - 1.0
+        self.assertGreater(result.roi, geometric)
 
     def test_index_mismatch_is_rejected(self):
         frame = _single_symbol_frame([0.1, 0.2]).set_axis([10, 11])

@@ -8,7 +8,9 @@ Convenções (honestas, sem lookahead):
   custo de não executar exatamente no close é modelado pelo ``slippage_pct``.
 - Custos: cada mudança de posição paga ``fee_pct + slippage_pct`` sobre o
   notional, aplicada em log (log(1 − custo)).
-- Carteira: pesos iguais entre os símbolos presentes em cada dia.
+- Carteira: pesos iguais entre os símbolos presentes em cada dia, agregada em
+  retornos SIMPLES (média aritmética dos retornos brutos) — média de log-retornos
+  seria a média geométrica, que subestima a carteira equal-weight.
 
 Métricas em cima da curva de equity: ROI, Sharpe anualizado (365d), max
 drawdown e nº de trades — sempre lado a lado com buy-and-hold.
@@ -93,10 +95,14 @@ def run_backtest(
 
 
 def _portfolio_daily_log_returns(per_symbol: list[pd.Series]) -> pd.Series:
-    """Peso igual entre os símbolos com dado no dia (média dos log-retornos)."""
+    """Peso igual entre os símbolos com dado no dia, em retornos simples.
+
+    Retorno bruto da carteira = média aritmética dos retornos brutos dos
+    constituintes; volta para log só para o acumulado da curva de equity.
+    """
     table = pd.concat(per_symbol, axis=1)
-    daily = table.mean(axis=1, skipna=True)
-    return daily.sort_index()
+    daily_simple = np.expm1(table).mean(axis=1, skipna=True)
+    return np.log1p(daily_simple).sort_index()
 
 
 def _sharpe(daily_log_returns: pd.Series) -> float:

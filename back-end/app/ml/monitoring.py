@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 from app.ml.config import MonitoringConfig
+from app.ml.dataset import drop_open_candles
 
 _FIRST_HORIZON = 1
 
@@ -52,7 +53,10 @@ class RealizedScore:
 
 
 def score_predictions(
-    predictions: list[dict], klines: pd.DataFrame, config: MonitoringConfig
+    predictions: list[dict],
+    klines: pd.DataFrame,
+    config: MonitoringConfig,
+    as_of: pd.Timestamp | None = None,
 ) -> list[RealizedScore]:
     """Erro realizado por model_version/horizonte, em ordem cronológica de run.
 
@@ -65,7 +69,8 @@ def score_predictions(
     if klines.empty:
         raise ValueError("Sem klines para pontuar previsões realizadas.")
 
-    closes = klines.copy()
+    # Vela aberta não é realização: seu close ainda vai mudar.
+    closes = drop_open_candles(klines, as_of).copy()
     closes["open_time"] = pd.to_datetime(closes["open_time"], utc=True).dt.normalize()
     close_lookup = {
         (row.symbol, row.open_time): float(row.close) for row in closes.itertuples(index=False)

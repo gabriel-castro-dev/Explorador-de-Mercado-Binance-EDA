@@ -85,7 +85,7 @@ def run_training(
     if "naive" not in factories:
         raise ValueError("O conjunto de candidatos precisa incluir o 'naive'.")
 
-    dataset = build_dataset(features, klines, config.dataset)
+    dataset = build_dataset(features, klines, config.dataset, as_of=run_date)
     dates = pd.DatetimeIndex(dataset.frame["timestamp"].unique()).sort_values()
     folds = walk_forward_windows(
         dates,
