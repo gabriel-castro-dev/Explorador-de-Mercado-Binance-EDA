@@ -36,6 +36,12 @@ def create_app() -> FastAPI:
             },
             {"name": "tickers", "description": "Snapshot 24h mais recente por ativo."},
             {
+                "name": "forecasts",
+                "description": "Previsões de preço do modelo de ML (curva de 1–7 dias "
+                "com banda de incerteza, run mais recente). `is_fallback=true` indica "
+                "curva naive publicada porque o campeão não passou no gate.",
+            },
+            {
                 "name": "auth",
                 "description": "Ponte de identidade: emite custom token do Firebase "
                 "para o usuario autenticado no Supabase.",

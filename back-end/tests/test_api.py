@@ -155,5 +155,69 @@ class TickersEndpointTests(ApiTestBase):
         builder.eq.assert_called_once_with("symbol", "BTCUSDT")
 
 
+_FORECAST_ROW = {
+    "id": 7,
+    "symbol": "BTCUSDT",
+    "model_version": "20260823-abc1234-gbm",
+    "run_at": "2026-08-23T00:10:00+00:00",
+    "target_time": "2026-08-24T00:00:00+00:00",
+    "horizon_days": 1,
+    "predicted_close": 114000.5,
+    "predicted_log_return": 0.0043,
+    "pred_lower": 111500.0,
+    "pred_upper": 116400.0,
+    "is_fallback": False,
+    "created_at": "2026-08-23T00:10:05+00:00",
+}
+
+
+class ForecastsEndpointTests(ApiTestBase):
+    def test_requires_a_token(self):
+        client = TestClient(self.app)
+        response = client.get("/api/v1/forecasts")
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.headers["WWW-Authenticate"], "Bearer")
+
+    def test_happy_path_contract(self):
+        client, supabase, builder = self._authed_client([_FORECAST_ROW])
+        response = client.get("/api/v1/forecasts?symbol=btcusdt")
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(len(body), 1)
+        # Contrato: rastreabilidade e estado de fallback sempre presentes.
+        self.assertEqual(body[0]["model_version"], "20260823-abc1234-gbm")
+        self.assertFalse(body[0]["is_fallback"])
+        self.assertEqual(body[0]["horizon_days"], 1)
+        self.assertNotIn("id", body[0])  # extra="ignore" filtra o surrogate id
+        supabase.table.assert_called_with("predictions")
+        eq_calls = {call.args for call in builder.eq.call_args_list}
+        self.assertIn(("symbol", "BTCUSDT"), eq_calls)  # upper() aplicado
+
+    def test_curve_preserves_horizon_order(self):
+        rows = [
+            {
+                **_FORECAST_ROW,
+                "horizon_days": h,
+                "target_time": f"2026-08-{23 + h:02d}T00:00:00+00:00",
+            }
+            for h in (1, 2, 3)
+        ]
+        client, _, _ = self._authed_client(rows)
+        body = client.get("/api/v1/forecasts?symbol=BTCUSDT").json()
+        self.assertEqual([row["horizon_days"] for row in body], [1, 2, 3])
+
+    def test_no_forecasts_yet_is_200_empty_list(self):
+        client, _, _ = self._authed_client([])
+        response = client.get("/api/v1/forecasts")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), [])
+
+    def test_invalid_symbol_length_is_422(self):
+        client, _, _ = self._authed_client([])
+        symbol_too_long = "A" * 21
+        response = client.get(f"/api/v1/forecasts?symbol={symbol_too_long}")
+        self.assertEqual(response.status_code, 422)
+
+
 if __name__ == "__main__":
     unittest.main()
