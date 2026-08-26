@@ -163,7 +163,11 @@ export interface paths {
         };
         /**
          * List Symbols
-         * @description Ativos rastreados pela plataforma, em ordem alfabética.
+         * @description Ativos conhecidos pela plataforma, em ordem alfabética.
+         *
+         *     Cada item traz `tracked`: `true` quando o ativo faz parte do universo de
+         *     análise (tem candles/indicadores); `false` para pares vistos só pelo
+         *     job de tickers 24h.
          */
         get: operations["list_symbols_api_v1_symbols_get"];
         put?: never;
@@ -492,13 +496,20 @@ export interface components {
         };
         /**
          * SymbolOut
-         * @description One tracked symbol from the symbols reference table.
+         * @description One symbol from the symbols reference table (via symbols_with_tracking).
+         *
+         *     ``tracked`` is required (never null): true when the symbol belongs to
+         *     the analysis universe, i.e. it has candles in klines_1d. The symbols
+         *     table also holds every pair ever seen by the ticker job, which has no
+         *     candles/features.
          */
         SymbolOut: {
             /** Created At */
             created_at?: string | null;
             /** Symbol */
             symbol: string;
+            /** Tracked */
+            tracked: boolean;
         };
         /**
          * Ticker24hOut
@@ -783,7 +794,10 @@ export interface operations {
     };
     list_symbols_api_v1_symbols_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Filtro opcional: `true` devolve só os ativos rastreados (com candles em klines_1d); `false`, só os sem candles. */
+                tracked?: boolean | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -799,6 +813,15 @@ export interface operations {
                     "application/json": components["schemas"]["SymbolOut"][];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     list_24h_snapshots_api_v1_tickers_24h_get: {
@@ -806,6 +829,8 @@ export interface operations {
             query?: {
                 /** @description ex.: BTCUSDT */
                 symbol?: string | null;
+                /** @description Filtro opcional: `true` devolve só os ativos rastreados (com candles). */
+                tracked?: boolean | null;
             };
             header?: never;
             path?: never;
