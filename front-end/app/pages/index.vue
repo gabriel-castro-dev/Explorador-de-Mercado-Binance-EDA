@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { InsightRow } from '~/utils/insights'
 import { latestSnapshotAt } from '~/utils/tickers'
-import { formatCompact, formatNumber } from '~/utils/format'
+import { formatCompact, formatNumber, formatPercent } from '~/utils/format'
 
 /**
  * Início — Home narrativa (Design.md §9). A ordem é narrativa → dados:
@@ -23,6 +23,7 @@ const lastSymbol = useLastSymbol()
 
 const insights = useHomeInsights()
 const reading = useDailyReading()
+const forecasts = useForecasts()
 
 // Valor gravado por versões antigas/externas pode não ser um ISO válido.
 const lastSeenValid = computed(() => (lastSeen.value && !Number.isNaN(Date.parse(lastSeen.value)) ? lastSeen.value : null))
@@ -39,6 +40,9 @@ const chartTarget = computed(() => (lastSymbol.value
 
 const fmtAtr = (row: InsightRow) => `${formatNumber(row.value, 1)} %`
 const fmtVolume = (row: InsightRow) => `${formatCompact(row.value)} USDT`
+/** Gap = variação da previsão diária sobre o preço atual; ciano por ser conteúdo do modelo. */
+const fmtGap = (row: InsightRow) => formatPercent(row.value, 1)
+const gapTone = () => 'ai' as const
 </script>
 
 <template>
@@ -103,9 +107,11 @@ const fmtVolume = (row: InsightRow) => `${formatCompact(row.value)} USDT`
             subtitle="diferença entre preço real e previsão diária"
             glyph="curve"
             ai
-            pending-model
-            :rows="[]"
-            :status="insights.status.value"
+            :rows="forecasts.gap.value"
+            :status="forecasts.status.value"
+            :format-value="fmtGap"
+            :value-tone="gapTone"
+            @retry="forecasts.refresh()"
           />
           <HomeMarketBand
             v-reveal="{ y: 32, delay: 160 }"

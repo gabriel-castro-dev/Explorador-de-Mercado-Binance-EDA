@@ -4,8 +4,8 @@ import { formatNumber, formatUtc } from '~/utils/format'
 
 /**
  * Previsões (Design.md §11): resumo da rodada, horizontes, tabela de cenários e
- * Monte Carlo. Enquanto a API de forecasts não existir no contrato, cada
- * superfície mostra o estado honesto — nenhuma trajetória e nenhum número.
+ * Monte Carlo. A rodada vem de `GET /api/v1/forecasts`; o Monte Carlo segue no
+ * estado honesto até a API expor trajetórias — nenhum número é inventado.
  */
 useHead({ title: 'Previsões · CRYPTO FORECASTING' })
 
