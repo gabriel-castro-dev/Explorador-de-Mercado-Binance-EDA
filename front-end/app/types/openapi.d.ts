@@ -63,8 +63,34 @@ export interface paths {
          * @description Curva de previsão (1–7 dias) do run mais recente, por ativo.
          *
          *     Ordenada por símbolo e horizonte; `[]` quando ainda não há previsões.
+         *     `model_type` vem de `model_metrics` da mesma `model_version` (um run = uma versão).
          */
         get: operations["list_forecasts_api_v1_forecasts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/forecasts/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Forecast Metrics
+         * @description Métricas da rodada que assinou o run mais recente (`model_metrics`).
+         *
+         *     MAE/RMSE em **log-retorno** (nunca USDT). `confidence` por símbolo =
+         *     `round(dir_acc × 100)` no horizonte 1, `null` abaixo do piso de amostras de
+         *     validação. `realized_metrics` só existe após o `ml-evaluate` semanal.
+         *     Resposta `null` (200) enquanto não há rodada publicada.
+         */
+        get: operations["get_forecast_metrics_api_v1_forecasts_metrics_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -331,6 +357,48 @@ export interface components {
             expires_in: number;
         };
         /**
+         * ForecastMetricsOut
+         * @description Metrics of the run that signed the latest forecasts (one ``model_metrics`` row).
+         *
+         *     Every MAE/RMSE is in log-return units — the model is global, so there is no
+         *     per-symbol error in price. ``confidence`` is the rounded directional
+         *     accuracy (0–100) at horizon 1, ``null`` for symbols with fewer than
+         *     ``MIN_CONFIDENCE_SAMPLES`` validation rows.
+         */
+        ForecastMetricsOut: {
+            /** Baseline Mae Log Return */
+            baseline_mae_log_return: {
+                [key: string]: number;
+            };
+            gate: components["schemas"]["GateOut"];
+            /** Git Sha */
+            git_sha: string | null;
+            /** Is Fallback */
+            is_fallback: boolean;
+            /** Model Type */
+            model_type: string;
+            /** Model Version */
+            model_version: string;
+            /** Per Fold Skill H1 */
+            per_fold_skill_h1: number[];
+            /** Per Horizon */
+            per_horizon: {
+                [key: string]: components["schemas"]["HorizonMetricsOut"];
+            };
+            /** Per Symbol */
+            per_symbol: {
+                [key: string]: components["schemas"]["SymbolMetricsOut"];
+            };
+            realized_metrics: components["schemas"]["RealizedMetricsOut"] | null;
+            /** Skill Score H1 */
+            skill_score_h1: number;
+            /**
+             * Trained At
+             * Format: date-time
+             */
+            trained_at: string;
+        };
+        /**
          * ForecastOut
          * @description One forecast point of the latest run: symbol × target_time × horizon.
          *
@@ -342,6 +410,8 @@ export interface components {
             horizon_days: number;
             /** Is Fallback */
             is_fallback: boolean;
+            /** Model Type */
+            model_type?: string | null;
             /** Model Version */
             model_version: string;
             /** Pred Lower */
@@ -365,6 +435,13 @@ export interface components {
              */
             target_time: string;
         };
+        /** GateOut */
+        GateOut: {
+            /** Passed */
+            passed: boolean;
+            /** Reason */
+            reason: string;
+        };
         /**
          * HealthOut
          * @description Service liveness response.
@@ -374,6 +451,20 @@ export interface components {
             status: string;
             /** Version */
             version: string;
+        };
+        /**
+         * HorizonMetricsOut
+         * @description Validation error for one horizon, in LOG-RETURN units (never USDT).
+         */
+        HorizonMetricsOut: {
+            /** Dir Acc */
+            dir_acc: number | null;
+            /** Mae Log Return */
+            mae_log_return: number;
+            /** N */
+            n: number;
+            /** Rmse Log Return */
+            rmse_log_return: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -489,6 +580,50 @@ export interface components {
             notifications?: components["schemas"]["NotificationSettings"];
             /** Phone */
             phone?: string | null;
+        };
+        /** RealizedHorizonOut */
+        RealizedHorizonOut: {
+            /** Mae Log Return */
+            mae_log_return: number;
+            /** N */
+            n: number;
+            /** Naive Mae Log Return */
+            naive_mae_log_return: number;
+            /** Skill */
+            skill: number;
+        };
+        /**
+         * RealizedMetricsOut
+         * @description Realized error filled by the weekly ``ml-evaluate`` job (same log-return units).
+         */
+        RealizedMetricsOut: {
+            /**
+             * Computed At
+             * Format: date-time
+             */
+            computed_at: string;
+            /** Is Degenerate */
+            is_degenerate: boolean;
+            /** N Rows */
+            n_rows: number;
+            /** Per Horizon */
+            per_horizon: {
+                [key: string]: components["schemas"]["RealizedHorizonOut"];
+            };
+        };
+        /**
+         * SymbolMetricsOut
+         * @description Validation error for one symbol at horizon 1, in log-return units.
+         */
+        SymbolMetricsOut: {
+            /** Confidence */
+            confidence: number | null;
+            /** Dir Acc */
+            dir_acc: number | null;
+            /** Mae Log Return */
+            mae_log_return: number;
+            /** N */
+            n: number;
         };
         /**
          * SymbolOut
@@ -658,6 +793,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_forecast_metrics_api_v1_forecasts_metrics_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastMetricsOut"] | null;
                 };
             };
         };

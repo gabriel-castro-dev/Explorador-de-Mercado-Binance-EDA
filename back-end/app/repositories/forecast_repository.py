@@ -52,6 +52,40 @@ class ForecastRepository(BaseRepository):
             query = query.eq("symbol", symbol)
         return query.execute().data
 
+    def get_model_type(self, model_version: str) -> str | None:
+        """``model_metrics.model_type`` of one version (``None`` when the row is missing)."""
+        rows = (
+            self.supabase.table(self._METRICS_TABLE)
+            .select("model_type")
+            .eq("model_version", model_version)
+            .limit(1)
+            .execute()
+        ).data
+        return rows[0]["model_type"] if rows else None
+
+    def get_latest_run_metrics(self) -> dict | None:
+        """``model_metrics`` row of the version that signed the most recent run.
+
+        ``None`` when there are no predictions yet (or the metrics row is missing).
+        """
+        latest = (
+            self.supabase.table(self._PREDICTIONS_TABLE)
+            .select("model_version")
+            .order("run_at", desc=True)
+            .limit(1)
+            .execute()
+        ).data
+        if not latest:
+            return None
+        rows = (
+            self.supabase.table(self._METRICS_TABLE)
+            .select("*")
+            .eq("model_version", latest[0]["model_version"])
+            .limit(1)
+            .execute()
+        ).data
+        return rows[0] if rows else None
+
     def get_scoreable_predictions(self, now: datetime, since: datetime) -> list[dict]:
         """Predictions from runs since ``since`` whose target_time is already realized."""
         return self._fetch_all(

@@ -334,7 +334,7 @@
           "forecasts"
         ],
         "summary": "List Forecasts",
-        "description": "Curva de previsão (1–7 dias) do run mais recente, por ativo.\n\nOrdenada por símbolo e horizonte; `[]` quando ainda não há previsões.",
+        "description": "Curva de previsão (1–7 dias) do run mais recente, por ativo.\n\nOrdenada por símbolo e horizonte; `[]` quando ainda não há previsões.\n`model_type` vem de `model_metrics` da mesma `model_version` (um run = uma versão).",
         "operationId": "list_forecasts_api_v1_forecasts_get",
         "security": [
           {
@@ -389,6 +389,41 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/forecasts/metrics": {
+      "get": {
+        "tags": [
+          "forecasts"
+        ],
+        "summary": "Get Forecast Metrics",
+        "description": "Métricas da rodada que assinou o run mais recente (`model_metrics`).\n\nMAE/RMSE em **log-retorno** (nunca USDT). `confidence` por símbolo =\n`round(dir_acc × 100)` no horizonte 1, `null` abaixo do piso de amostras de\nvalidação. `realized_metrics` só existe após o `ml-evaluate` semanal.\nResposta `null` (200) enquanto não há rodada publicada.",
+        "operationId": "get_forecast_metrics_api_v1_forecasts_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ForecastMetricsOut"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Forecast Metrics Api V1 Forecasts Metrics Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/v1/preferences": {
@@ -873,6 +908,100 @@
         "title": "FirebaseTokenOut",
         "description": "A short-lived Firebase custom token for the signed-in user.\n\nExchange it for an ID token at the Identity Toolkit:\n``POST accounts:signInWithCustomToken?key=<web api key>``."
       },
+      "ForecastMetricsOut": {
+        "properties": {
+          "model_version": {
+            "type": "string",
+            "title": "Model Version"
+          },
+          "model_type": {
+            "type": "string",
+            "title": "Model Type"
+          },
+          "trained_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Trained At"
+          },
+          "is_fallback": {
+            "type": "boolean",
+            "title": "Is Fallback"
+          },
+          "git_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Git Sha"
+          },
+          "gate": {
+            "$ref": "#/components/schemas/GateOut"
+          },
+          "skill_score_h1": {
+            "type": "number",
+            "title": "Skill Score H1"
+          },
+          "per_fold_skill_h1": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Per Fold Skill H1"
+          },
+          "per_horizon": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/HorizonMetricsOut"
+            },
+            "type": "object",
+            "title": "Per Horizon"
+          },
+          "baseline_mae_log_return": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Baseline Mae Log Return"
+          },
+          "per_symbol": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SymbolMetricsOut"
+            },
+            "type": "object",
+            "title": "Per Symbol"
+          },
+          "realized_metrics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RealizedMetricsOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "model_version",
+          "model_type",
+          "trained_at",
+          "is_fallback",
+          "git_sha",
+          "gate",
+          "skill_score_h1",
+          "per_fold_skill_h1",
+          "per_horizon",
+          "baseline_mae_log_return",
+          "per_symbol",
+          "realized_metrics"
+        ],
+        "title": "ForecastMetricsOut",
+        "description": "Metrics of the run that signed the latest forecasts (one ``model_metrics`` row).\n\nEvery MAE/RMSE is in log-return units — the model is global, so there is no\nper-symbol error in price. ``confidence`` is the rounded directional\naccuracy (0–100) at horizon 1, ``null`` for symbols with fewer than\n``MIN_CONFIDENCE_SAMPLES`` validation rows."
+      },
       "ForecastOut": {
         "properties": {
           "symbol": {
@@ -882,6 +1011,17 @@
           "model_version": {
             "type": "string",
             "title": "Model Version"
+          },
+          "model_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Type"
           },
           "run_at": {
             "type": "string",
@@ -934,6 +1074,24 @@
         "title": "ForecastOut",
         "description": "One forecast point of the latest run: symbol × target_time × horizon.\n\n``is_fallback=True`` means the champion failed the publication gate and the\ncurve is the naive random walk — the UI must surface the degraded state."
       },
+      "GateOut": {
+        "properties": {
+          "passed": {
+            "type": "boolean",
+            "title": "Passed"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "passed",
+          "reason"
+        ],
+        "title": "GateOut"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -965,6 +1123,42 @@
         ],
         "title": "HealthOut",
         "description": "Service liveness response."
+      },
+      "HorizonMetricsOut": {
+        "properties": {
+          "mae_log_return": {
+            "type": "number",
+            "title": "Mae Log Return"
+          },
+          "rmse_log_return": {
+            "type": "number",
+            "title": "Rmse Log Return"
+          },
+          "dir_acc": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dir Acc"
+          },
+          "n": {
+            "type": "integer",
+            "title": "N"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mae_log_return",
+          "rmse_log_return",
+          "dir_acc",
+          "n"
+        ],
+        "title": "HorizonMetricsOut",
+        "description": "Validation error for one horizon, in LOG-RETURN units (never USDT)."
       },
       "KlineOut": {
         "properties": {
@@ -1206,6 +1400,110 @@
         "type": "object",
         "title": "PreferencesOut",
         "description": "Preferences returned to the client.\n\n``extra=\"ignore\"`` (not ``forbid``): documents written by an older\nschema version must never break a read."
+      },
+      "RealizedHorizonOut": {
+        "properties": {
+          "mae_log_return": {
+            "type": "number",
+            "title": "Mae Log Return"
+          },
+          "naive_mae_log_return": {
+            "type": "number",
+            "title": "Naive Mae Log Return"
+          },
+          "skill": {
+            "type": "number",
+            "title": "Skill"
+          },
+          "n": {
+            "type": "integer",
+            "title": "N"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mae_log_return",
+          "naive_mae_log_return",
+          "skill",
+          "n"
+        ],
+        "title": "RealizedHorizonOut"
+      },
+      "RealizedMetricsOut": {
+        "properties": {
+          "computed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Computed At"
+          },
+          "n_rows": {
+            "type": "integer",
+            "title": "N Rows"
+          },
+          "is_degenerate": {
+            "type": "boolean",
+            "title": "Is Degenerate"
+          },
+          "per_horizon": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RealizedHorizonOut"
+            },
+            "type": "object",
+            "title": "Per Horizon"
+          }
+        },
+        "type": "object",
+        "required": [
+          "computed_at",
+          "n_rows",
+          "is_degenerate",
+          "per_horizon"
+        ],
+        "title": "RealizedMetricsOut",
+        "description": "Realized error filled by the weekly ``ml-evaluate`` job (same log-return units)."
+      },
+      "SymbolMetricsOut": {
+        "properties": {
+          "mae_log_return": {
+            "type": "number",
+            "title": "Mae Log Return"
+          },
+          "dir_acc": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dir Acc"
+          },
+          "n": {
+            "type": "integer",
+            "title": "N"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mae_log_return",
+          "dir_acc",
+          "n",
+          "confidence"
+        ],
+        "title": "SymbolMetricsOut",
+        "description": "Validation error for one symbol at horizon 1, in log-return units."
       },
       "SymbolOut": {
         "properties": {

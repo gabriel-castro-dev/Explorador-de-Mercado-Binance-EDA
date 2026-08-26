@@ -159,6 +159,9 @@ _FORECAST_ROW = {
     "id": 7,
     "symbol": "BTCUSDT",
     "model_version": "20260823-abc1234-gbm",
+    # Não é coluna de `predictions`: o fake serve a mesma linha à consulta de
+    # model_metrics.model_type (testes com side_effect cobrem o caminho real).
+    "model_type": "gbm",
     "run_at": "2026-08-23T00:10:00+00:00",
     "target_time": "2026-08-24T00:00:00+00:00",
     "horizon_days": 1,
@@ -186,10 +189,12 @@ class ForecastsEndpointTests(ApiTestBase):
         self.assertEqual(len(body), 1)
         # Contrato: rastreabilidade e estado de fallback sempre presentes.
         self.assertEqual(body[0]["model_version"], "20260823-abc1234-gbm")
+        self.assertEqual(body[0]["model_type"], "gbm")
         self.assertFalse(body[0]["is_fallback"])
         self.assertEqual(body[0]["horizon_days"], 1)
         self.assertNotIn("id", body[0])  # extra="ignore" filtra o surrogate id
-        supabase.table.assert_called_with("predictions")
+        tables = [call.args[0] for call in supabase.table.call_args_list]
+        self.assertEqual(tables, ["predictions", "predictions", "model_metrics"])
         eq_calls = {call.args for call in builder.eq.call_args_list}
         self.assertIn(("symbol", "BTCUSDT"), eq_calls)  # upper() aplicado
 
@@ -206,6 +211,28 @@ class ForecastsEndpointTests(ApiTestBase):
         body = client.get("/api/v1/forecasts?symbol=BTCUSDT").json()
         self.assertEqual([row["horizon_days"] for row in body], [1, 2, 3])
 
+    def test_rows_carry_the_model_type_of_their_version(self):
+        client, supabase, builder = self._authed_client([_FORECAST_ROW])
+        builder.execute.side_effect = [
+            MagicMock(data=[{"run_at": _FORECAST_ROW["run_at"]}]),
+            MagicMock(data=[_FORECAST_ROW]),
+            MagicMock(data=[{"model_type": "gbm"}]),
+        ]
+        body = client.get("/api/v1/forecasts").json()
+        self.assertEqual(body[0]["model_type"], "gbm")
+        tables = [call.args[0] for call in supabase.table.call_args_list]
+        self.assertEqual(tables, ["predictions", "predictions", "model_metrics"])
+
+    def test_model_type_is_null_when_metrics_row_is_missing(self):
+        client, _, builder = self._authed_client([_FORECAST_ROW])
+        builder.execute.side_effect = [
+            MagicMock(data=[{"run_at": _FORECAST_ROW["run_at"]}]),
+            MagicMock(data=[_FORECAST_ROW]),
+            MagicMock(data=[]),
+        ]
+        body = client.get("/api/v1/forecasts").json()
+        self.assertIsNone(body[0]["model_type"])
+
     def test_no_forecasts_yet_is_200_empty_list(self):
         client, _, _ = self._authed_client([])
         response = client.get("/api/v1/forecasts")
@@ -217,6 +244,72 @@ class ForecastsEndpointTests(ApiTestBase):
         symbol_too_long = "A" * 21
         response = client.get(f"/api/v1/forecasts?symbol={symbol_too_long}")
         self.assertEqual(response.status_code, 422)
+
+
+_METRICS_ROW = {
+    "id": 3,
+    "model_version": "20260823-abc1234-gbm",
+    "model_type": "gbm",
+    "trained_at": "2026-08-23T00:10:00+00:00",
+    "train_start": "2021-05-13T00:00:00+00:00",
+    "train_end": "2026-08-17T00:00:00+00:00",
+    "git_sha": "abc1234def",
+    "hyperparams": {
+        "champion": "gbm",
+        "members": ["gbm"],
+        "ranking": {"gbm": 0.01, "naive": 0.0},
+        "gate": {"passed": True, "reason": "Skill score 0.0100 em y_1 — publicação liberada."},
+        "n_folds": 4,
+    },
+    "metrics": {
+        "skill_score_h1": 0.01,
+        "per_fold_skill_h1": [0.02, 0.0, 0.01, 0.01],
+        "per_horizon": {"y_1": {"mae": 0.0258, "rmse": 0.0464, "dir_acc": 0.4995, "n": 2114.0}},
+        "per_symbol": {
+            "BTCUSDT": {"mae": 0.02, "dir_acc": 0.503, "n": 173.0},
+            "PLUMEUSDT": {"mae": 0.05, "dir_acc": 0.5, "n": 38.0},
+        },
+    },
+    "baseline_mae": {"y_1": 0.0258},
+    "realized_metrics": None,
+    "is_fallback": False,
+    "created_at": "2026-08-23T00:10:05+00:00",
+}
+
+
+class ForecastMetricsEndpointTests(ApiTestBase):
+    def test_requires_a_token(self):
+        client = TestClient(self.app)
+        response = client.get("/api/v1/forecasts/metrics")
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.headers["WWW-Authenticate"], "Bearer")
+
+    def test_happy_path_contract(self):
+        # O mesmo fake responde às duas consultas (model_version do run e a linha
+        # de model_metrics): a primeira só lê model_version.
+        client, supabase, _ = self._authed_client([_METRICS_ROW])
+        response = client.get("/api/v1/forecasts/metrics")
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["model_version"], "20260823-abc1234-gbm")
+        self.assertEqual(body["model_type"], "gbm")
+        self.assertTrue(body["gate"]["passed"])
+        self.assertEqual(body["per_horizon"]["y_1"]["mae_log_return"], 0.0258)
+        self.assertEqual(body["per_horizon"]["y_1"]["n"], 2114)
+        self.assertEqual(body["baseline_mae_log_return"]["y_1"], 0.0258)
+        self.assertEqual(body["per_symbol"]["BTCUSDT"]["confidence"], 50)
+        self.assertIsNone(body["per_symbol"]["PLUMEUSDT"]["confidence"])  # abaixo do piso
+        self.assertIsNone(body["realized_metrics"])
+        self.assertNotIn("id", body)
+        self.assertNotIn("hyperparams", body)
+        tables = [call.args[0] for call in supabase.table.call_args_list]
+        self.assertEqual(tables, ["predictions", "model_metrics"])
+
+    def test_no_run_yet_is_200_null(self):
+        client, _, _ = self._authed_client([])
+        response = client.get("/api/v1/forecasts/metrics")
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json())
 
 
 if __name__ == "__main__":
