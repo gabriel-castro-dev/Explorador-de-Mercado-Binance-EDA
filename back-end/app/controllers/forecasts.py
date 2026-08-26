@@ -6,8 +6,8 @@ import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.controllers.deps import ForecastRepoDep, KlinesRepoDep, get_claims
+from app.core.candles import drop_open_candles
 from app.core.timeframe import Timeframe
-from app.ml.dataset import drop_open_candles
 from app.schemas.forecast import (
     ForecastMetricsOut,
     ForecastOut,

@@ -14,8 +14,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from app.core.candles import drop_open_candles
 from app.ml.config import MonitoringConfig
-from app.ml.dataset import drop_open_candles
 
 _FIRST_HORIZON = 1
 

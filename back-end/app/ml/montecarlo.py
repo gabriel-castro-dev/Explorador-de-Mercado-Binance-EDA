@@ -16,9 +16,13 @@ import numpy as np
 import pandas as pd
 
 
-def seed_from_version(model_version: str) -> int:
-    """Seed estável (CRC32) por versão: mesma rodada → mesma nuvem."""
-    return zlib.crc32(model_version.encode("utf-8"))
+def seed_from_version(model_version: str, symbol: str = "") -> int:
+    """Seed estável (CRC32) por versão e símbolo: mesma rodada → mesma nuvem.
+
+    O símbolo entra na chave para que ativos diferentes não reamostrem os
+    mesmos cenários na mesma ordem (nuvens correlacionadas índice a índice).
+    """
+    return zlib.crc32(f"{model_version}:{symbol}".encode("utf-8"))
 
 
 def validation_residuals(

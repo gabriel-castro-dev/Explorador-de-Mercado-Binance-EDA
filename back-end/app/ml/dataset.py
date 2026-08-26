@@ -18,6 +18,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from app.core.candles import drop_open_candles
 from app.ml.config import DatasetConfig
 
 logger = logging.getLogger(__name__)
@@ -129,16 +130,6 @@ def build_dataset(
         feature_columns=feature_columns,
         target_columns=target_columns,
     )
-
-
-def drop_open_candles(klines: pd.DataFrame, as_of: pd.Timestamp | None) -> pd.DataFrame:
-    """Mantém apenas velas com ``close_time <= as_of`` (sem close_time, mantém tudo)."""
-    if as_of is None or "close_time" not in klines.columns:
-        return klines
-    closed = pd.to_datetime(klines["close_time"], utc=True) <= as_of
-    if not closed.all():
-        logger.info("%s velas ainda abertas em %s ignoradas.", int((~closed).sum()), as_of)
-    return klines[closed]
 
 
 def finalize_training_frame(

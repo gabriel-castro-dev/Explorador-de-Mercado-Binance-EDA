@@ -90,6 +90,10 @@ class SeedTests(unittest.TestCase):
             seed_from_version("20260826-abc1234-drift"),
             seed_from_version("20260826-abc1234-drift-fallback-naive"),
         )
+        self.assertNotEqual(
+            seed_from_version("20260826-abc1234-drift", "BTCUSDT"),
+            seed_from_version("20260826-abc1234-drift", "ETHUSDT"),
+        )
 
 
 def _noisy_outcome(config=None):
@@ -127,6 +131,29 @@ class MonteCarloRowsTests(unittest.TestCase):
         first = build_monte_carlo_rows(outcome, run_at=_RUN_AT, n_paths=50)
         second = build_monte_carlo_rows(outcome, run_at=_RUN_AT, n_paths=50)
         self.assertEqual(first, second)
+
+    def test_symbols_do_not_share_scenario_order(self):
+        # Mesma rodada, ativos diferentes: os resíduos reamostrados (log(path) −
+        # log(close) − ŷ) não podem ser idênticos linha a linha entre ativos.
+        outcome = _noisy_outcome()
+        forecasts = build_forecast_rows(outcome, run_at=_RUN_AT)
+        rows = build_monte_carlo_rows(outcome, run_at=_RUN_AT, n_paths=100)
+        sampled = {}
+        for row in rows:
+            predicted = np.array(
+                [
+                    f["predicted_log_return"]
+                    for f in sorted(
+                        (f for f in forecasts if f["symbol"] == row["symbol"]),
+                        key=lambda f: f["horizon_days"],
+                    )
+                ]
+            )
+            close = next(
+                f for f in forecasts if f["symbol"] == row["symbol"] and f["horizon_days"] == 1
+            )["predicted_close"] / np.exp(predicted[0])
+            sampled[row["symbol"]] = np.log(np.array(row["paths"]) / close) - predicted
+        self.assertFalse(np.allclose(sampled["AAAUSDT"], sampled["BBBUSDT"], atol=1e-4))
 
     def test_cloud_agrees_with_uncertainty_band(self):
         # Quantis 10/90 do terminal (último horizonte) ≈ pred_lower/pred_upper.

@@ -101,7 +101,6 @@ def build_monte_carlo_rows(
     targets = outcome.final.target_columns
     residuals = validation_residuals(outcome.validation_frame, predictions_on_validation, targets)
     origins, predictions = _predict_origins(model, outcome)
-    seed = seed_from_version(model_version)
 
     rows: list[dict] = []
     for (_, origin), (_, prediction) in zip(
@@ -112,7 +111,7 @@ def build_monte_carlo_rows(
             predicted_log_returns=prediction[list(targets)].to_numpy(dtype=float),
             residuals=residuals,
             n_paths=n_paths,
-            seed=seed,
+            seed=seed_from_version(model_version, str(origin["symbol"])),
         )
         rows.append(
             {

@@ -61,10 +61,13 @@ e o `model_version` gravado em `model_metrics`.
 - **Causa da primeira falha no Actions** (run 33003574807, 39 s): `python -m app.ml.main`
   chama `setup_logging()` → `get_settings()`, e o `Settings` monolítico exige
   `BINANCE_API_KEY`/`SECRET` mesmo em um job que só fala com o Supabase. Os jobs
-  `ml-forecast`/`ml-evaluate` eram os únicos criados sem essas variáveis. Correção:
-  o workflow passa os mesmos secrets aos dois jobs (contorno idêntico ao do job de
-  features). Refatorar o `Settings` para exigir as chaves só quando o `BinanceClient`
-  conecta fica registrado como melhoria — não entrou para não tocar a ingestão.
+  `ml-forecast`/`ml-evaluate` eram os únicos criados sem essas variáveis. Primeiro
+  contorno: passar os secrets aos dois jobs no workflow (foi o que rodou a evidência
+  abaixo). A revisão de padrões apontou que isso viola a regra do AGENTS.md ("env vars
+  só são exigidas quando um componente conecta de fato"), então a causa-raiz foi
+  corrigida: `BINANCE_API_KEY`/`SECRET` viraram opcionais no `Settings` e o
+  `BinanceClient` falha com mensagem clara na conexão se faltarem; o contorno saiu do
+  workflow. Vale a partir da próxima imagem `crypto-ml` publicada de `main`.
 - **Evidência** (run [33003779118](https://github.com/gabriel-castro-dev/crypto-forecasting-app/actions/runs/33003779118),
   5 min 6 s, `workflow_dispatch` a partir do branch com a correção; imagem `crypto-ml`
   de `main`): `model_version = 20260826-7eb4400-drift`, `git_sha` real, 112 linhas
@@ -106,7 +109,8 @@ e o `model_version` gravado em `model_metrics`.
   marginal por horizonte continua sendo a distribuição empírica dos resíduos, então os
   quantis 10/90 da nuvem reproduzem `pred_lower/pred_upper` por construção (teste
   `test_cloud_agrees_with_uncertainty_band`, tolerância de 25 % da largura da banda em log).
-  Seed = CRC32 da `model_version`; 1000 trajetórias/símbolo (`montecarlo.n_paths`);
+  Seed = CRC32 de `model_version:símbolo` (a revisão apontou que uma seed só por versão
+  deixava as nuvens de ativos diferentes correlacionadas índice a índice); 1000 trajetórias/símbolo (`montecarlo.n_paths`);
   preços arredondados a 6 algarismos significativos (~80 KB por linha em jsonb).
 - **Correção colateral:** a banda do fallback usava os quantis de resíduo do **campeão
   reprovado**; agora usa os do naive (`ŷ = 0`), que é o modelo publicado. Sem isso a

@@ -31,18 +31,23 @@ class ForecastRepository(BaseRepository):
         ).execute()
         logger.info("Métricas persistidas para model_version=%s.", record.get("model_version"))
 
-    def get_latest_run_predictions(self, symbol: str | None = None) -> list[dict]:
-        """Rows of the most recent run (max run_at), optionally for one symbol."""
-        latest = (
+    def _latest_run(self) -> dict | None:
+        """``run_at`` and ``model_version`` of the most recent run (``None`` when empty)."""
+        rows = (
             self.supabase.table(self._PREDICTIONS_TABLE)
-            .select("run_at")
+            .select("run_at, model_version")
             .order("run_at", desc=True)
             .limit(1)
             .execute()
         ).data
-        if not latest:
+        return rows[0] if rows else None
+
+    def get_latest_run_predictions(self, symbol: str | None = None) -> list[dict]:
+        """Rows of the most recent run (max run_at), optionally for one symbol."""
+        latest = self._latest_run()
+        if latest is None:
             return []
-        run_at = latest[0]["run_at"]
+        run_at = latest["run_at"]
         query = (
             self.supabase.table(self._PREDICTIONS_TABLE)
             .select("*")
@@ -91,19 +96,13 @@ class ForecastRepository(BaseRepository):
 
         ``None`` when there are no predictions yet (or the metrics row is missing).
         """
-        latest = (
-            self.supabase.table(self._PREDICTIONS_TABLE)
-            .select("model_version")
-            .order("run_at", desc=True)
-            .limit(1)
-            .execute()
-        ).data
-        if not latest:
+        latest = self._latest_run()
+        if latest is None:
             return None
         rows = (
             self.supabase.table(self._METRICS_TABLE)
             .select("*")
-            .eq("model_version", latest[0]["model_version"])
+            .eq("model_version", latest["model_version"])
             .limit(1)
             .execute()
         ).data
