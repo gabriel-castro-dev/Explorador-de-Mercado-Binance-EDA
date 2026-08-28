@@ -12,7 +12,8 @@ const facts = computed(() => {
   const r = props.round
   return [
     { term: 'Modelo', value: r ? `${r.model.toUpperCase()} · ${r.version} · ${r.status.toUpperCase()}` : `MODELO ${EM_DASH}` },
-    { term: 'Erro médio absoluto', value: r?.maeUsdt == null ? `MAE ${EM_DASH}` : `MAE ${formatNumber(r.maeUsdt, 1)} USDT` },
+    // MAE do log-retorno em 1 dia, em % — a API não tem MAE em preço por símbolo global.
+    { term: 'Erro médio absoluto', value: r?.maePercent == null ? `MAE ${EM_DASH}` : `MAE ${formatNumber(r.maePercent, 1)} %` },
     { term: 'Acerto de direção', value: r?.directionAccuracy == null ? `DIREÇÃO ${EM_DASH}` : `DIREÇÃO ${formatNumber(r.directionAccuracy, 0)} %` },
   ]
 })

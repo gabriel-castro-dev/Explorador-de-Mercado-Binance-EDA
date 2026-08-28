@@ -10,14 +10,39 @@ import { formatNumber, formatUtc } from '~/utils/format'
 useHead({ title: 'Previsões · CRYPTO FORECASTING' })
 
 const forecasts = useForecasts()
-const monteCarlo = useMonteCarlo()
+
+// Ativo da nuvem: `?symbol=` na URL (compartilhável); sem ele, o primeiro da rodada.
+const { symbol: querySymbol } = useDashboardQuery()
+const symbolOptions = computed(() => forecasts.rows.value.map(r => r.symbol))
+const mcSymbol = computed<string | null>({
+  get: () => querySymbol.value ?? symbolOptions.value[0] ?? null,
+  set: (value) => {
+    querySymbol.value = value
+  },
+})
+// USelectMenu não aceita null no v-model; a página trabalha com string | null.
+const mcSymbolModel = computed<string | undefined>({
+  get: () => mcSymbol.value ?? undefined,
+  set: (value) => {
+    mcSymbol.value = value ?? null
+  },
+})
+const monteCarlo = useMonteCarlo(mcSymbol)
+
+/** Vazio honesto com motivo certo: sem rodada ≠ sem simulação para este ativo. */
+const monteCarloEmpty = computed(() => {
+  if (!forecasts.round.value) return undefined
+  if (monteCarlo.status.value === 'error') return 'Não foi possível carregar a simulação deste ativo.'
+  if (mcSymbol.value && monteCarlo.notFound.value) return `Sem simulação para ${mcSymbol.value} nesta rodada.`
+  return undefined
+})
 
 const refreshing = ref(false)
 async function refresh() {
   if (refreshing.value) return
   refreshing.value = true
   try {
-    await forecasts.refresh()
+    await Promise.all([forecasts.refresh(), monteCarlo.refresh()])
   } finally {
     refreshing.value = false
   }
@@ -113,14 +138,27 @@ const DISCLAIMER = 'Leia as previsões como cenários, não como recomendação 
         </div>
 
         <!-- Controles só existem quando há o que controlar -->
-        <UButton
-          v-if="monteCarlo.series.value"
-          color="neutral"
-          variant="outline"
-          icon="i-lucide-refresh-cw"
-          label="Reiniciar simulação"
-          @click="monteCarlo.restart()"
-        />
+        <div
+          v-if="symbolOptions.length"
+          class="flex flex-wrap items-center gap-3"
+        >
+          <USelectMenu
+            v-model="mcSymbolModel"
+            :items="symbolOptions"
+            :search-input="{ placeholder: 'Buscar ativo…', icon: 'i-lucide-search' }"
+            icon="i-lucide-search"
+            aria-label="Ativo da simulação"
+            class="w-[180px]"
+          />
+          <UButton
+            v-if="monteCarlo.series.value"
+            color="neutral"
+            variant="outline"
+            icon="i-lucide-refresh-cw"
+            label="Reiniciar simulação"
+            @click="monteCarlo.restart()"
+          />
+        </div>
       </div>
 
       <div class="mt-8">
@@ -128,6 +166,7 @@ const DISCLAIMER = 'Leia as previsões como cenários, não como recomendação 
           <ForecastMonteCarloChart
             :series="monteCarlo.series.value"
             :restart-token="monteCarlo.restartToken.value"
+            :empty-message="monteCarloEmpty"
           />
           <template #fallback>
             <div
