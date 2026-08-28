@@ -1,5 +1,5 @@
-import type { ForecastPoint, Ticker24h } from '~/types/api'
-import type { ForecastRound, HorizonSummary, ScenarioCell, ScenarioRow } from '~/types/forecast'
+import type { ForecastMetrics, ForecastPoint, MonteCarloSeriesOut, Ticker24h } from '~/types/api'
+import type { ForecastRound, HorizonSummary, MonteCarloSeries, ScenarioCell, ScenarioRow } from '~/types/forecast'
 import type { InsightRow } from '~/utils/insights'
 import { formatPercent, formatUtc } from '~/utils/format'
 
@@ -33,8 +33,23 @@ function cellOf(point: ForecastPoint | undefined, realPrice: number | null): Sce
   return { price: point.predicted_close, changePercent: changePercent(point, realPrice) }
 }
 
+/**
+ * Métricas só valem para a mesma `model_version` das previsões: uma rodada
+ * publicada entre as duas requisições não pode misturar números.
+ */
+function metricsFor(points: readonly ForecastPoint[], metrics: ForecastMetrics | null | undefined): ForecastMetrics | null {
+  const version = points[0]?.model_version
+  if (!metrics || !version || metrics.model_version !== version) return null
+  return metrics
+}
+
 /** Uma linha por símbolo, na ordem em que a API os devolve (alfabética). */
-export function mapScenarioRows(points: readonly ForecastPoint[], tickers: readonly Ticker24h[]): ScenarioRow[] {
+export function mapScenarioRows(
+  points: readonly ForecastPoint[],
+  tickers: readonly Ticker24h[],
+  metrics: ForecastMetrics | null = null,
+): ScenarioRow[] {
+  const usable = metricsFor(points, metrics)
   const priceBySymbol = new Map(tickers.map(t => [t.symbol, t.last_price ?? null]))
   const bySymbol = new Map<string, Map<number, ForecastPoint>>()
   for (const point of points) {
@@ -55,8 +70,8 @@ export function mapScenarioRows(points: readonly ForecastPoint[], tickers: reado
       weekly: cellOf(horizons.get(HORIZON_DAYS.weekly), realPrice),
       monthly: EMPTY_CELL,
       yearly: EMPTY_CELL,
-      // Métrica de confiança ainda não é exposta pela API (ver handoff 2026-08-26).
-      confidence: null,
+      // Confiança = acerto de direção em 1 dia (0–100), definida pela API; null com histórico curto.
+      confidence: usable?.per_symbol[symbol]?.confidence ?? null,
     }
   })
 }
@@ -68,12 +83,18 @@ function mean(values: readonly (number | null)[]): number | null {
 }
 
 /**
- * Cabeçalho da rodada. `null` sem previsões. MAE e acerto de direção ficam
- * `null` até a API expor as métricas da versão vigente.
+ * Cabeçalho da rodada. `null` sem previsões. MAE e acerto de direção vêm de
+ * `/forecasts/metrics` (horizonte de 1 dia) quando a versão coincide; senão `null`.
  */
-export function buildRound(points: readonly ForecastPoint[], rows: readonly ScenarioRow[]): ForecastRound | null {
+export function buildRound(
+  points: readonly ForecastPoint[],
+  rows: readonly ScenarioRow[],
+  metrics: ForecastMetrics | null = null,
+): ForecastRound | null {
   const first = points[0]
   if (!first) return null
+  const usable = metricsFor(points, metrics)
+  const h1 = usable?.per_horizon.y_1
 
   const isFallback = points.some(p => p.is_fallback)
   const daily = mean(rows.map(r => r.daily.changePercent))
@@ -88,12 +109,12 @@ export function buildRound(points: readonly ForecastPoint[], rows: readonly Scen
   const runAt = points.reduce((latest, p) => (p.run_at > latest ? p.run_at : latest), first.run_at)
 
   return {
-    model: 'Global',
+    model: usable?.model_type ?? first.model_type ?? 'Global',
     version: first.model_version,
     status: isFallback ? 'FALLBACK NAIVE' : 'EM VALIDAÇÃO',
     generatedAt: runAt,
-    maeUsdt: null,
-    directionAccuracy: null,
+    maePercent: h1 ? h1.mae_log_return * 100 : null,
+    directionAccuracy: h1?.dir_acc == null ? null : h1.dir_acc * 100,
     horizons,
     narrative: buildNarrative(rows.length, runAt, daily, weekly, isFallback),
     disclaimer: FORECAST_DISCLAIMER,
@@ -128,4 +149,28 @@ export function gapTop(rows: readonly ScenarioRow[], limit = 5): InsightRow[] {
     .map(r => ({ symbol: r.symbol, value: r.daily.changePercent as number, delta: null }))
     .sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
     .slice(0, limit)
+}
+
+/**
+ * `/forecasts/monte-carlo` já vem no formato da UI; só normaliza `classified`
+ * (`null` da API vira ausente) e ordena o observado. Trajetórias são as reais.
+ */
+export function mapMonteCarlo(out: MonteCarloSeriesOut): MonteCarloSeries {
+  const c = out.classified
+  const classified = c
+    ? {
+        best: c.best ?? undefined,
+        base: c.base ?? undefined,
+        worst: c.worst ?? undefined,
+      }
+    : undefined
+  return {
+    symbol: out.symbol,
+    horizonDays: out.horizonDays,
+    observed: [...out.observed].sort((a, b) => a.time - b.time),
+    stepSeconds: out.stepSeconds,
+    paths: out.paths,
+    simulatedCount: out.simulatedCount,
+    classified,
+  }
 }

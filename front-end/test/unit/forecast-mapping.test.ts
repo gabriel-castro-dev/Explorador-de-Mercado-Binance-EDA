@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildNarrative, buildRound, gapTop, mapScenarioRows } from '../../app/utils/forecast-mapping'
-import type { ForecastPoint, Ticker24h } from '../../app/types/api'
+import { buildNarrative, buildRound, gapTop, mapMonteCarlo, mapScenarioRows } from '../../app/utils/forecast-mapping'
+import type { ForecastMetrics, ForecastPoint, MonteCarloSeriesOut, Ticker24h } from '../../app/types/api'
 
 /** Fixtures só aqui: produção desenha apenas o que a API devolve. */
 function point(symbol: string, horizon: number, close: number, logReturn = 0.01, fallback = false): ForecastPoint {
@@ -20,6 +20,26 @@ function point(symbol: string, horizon: number, close: number, logReturn = 0.01,
 
 function ticker(symbol: string, lastPrice: number | null): Ticker24h {
   return { symbol, last_price: lastPrice } as Ticker24h
+}
+
+function metricsFixture(version: string): ForecastMetrics {
+  return {
+    model_version: version,
+    model_type: 'drift',
+    trained_at: '2026-08-24T14:33:58Z',
+    is_fallback: false,
+    git_sha: 'abc',
+    gate: { passed: true, reason: 'ok' },
+    skill_score_h1: 0.002,
+    per_fold_skill_h1: [0.001],
+    per_horizon: { y_1: { mae_log_return: 0.025, rmse_log_return: 0.045, dir_acc: 0.51, n: 2114 } },
+    baseline_mae_log_return: { y_1: 0.0254 },
+    per_symbol: {
+      BTCUSDT: { mae_log_return: 0.014, dir_acc: 0.49, n: 173, confidence: 49 },
+      ETHUSDT: { mae_log_return: 0.019, dir_acc: null, n: 38, confidence: null },
+    },
+    realized_metrics: null,
+  }
 }
 
 const POINTS = [
@@ -88,10 +108,30 @@ describe('buildRound', () => {
     expect(byKey.yearly).toBeNull()
   })
 
-  it('métricas ficam nulas até a API expor', () => {
+  it('sem métricas, MAE e direção ficam nulos e o modelo cai no rótulo genérico', () => {
     const round = buildRound(POINTS, mapScenarioRows(POINTS, tickers))!
-    expect(round.maeUsdt).toBeNull()
+    expect(round.maePercent).toBeNull()
     expect(round.directionAccuracy).toBeNull()
+    expect(round.model).toBe('Global')
+  })
+
+  it('com métricas da mesma versão, MAE vira % do log-retorno em 1 dia e direção 0–100', () => {
+    const metrics = metricsFixture('20260824-abc-drift')
+    const rows = mapScenarioRows(POINTS, tickers, metrics)
+    const round = buildRound(POINTS, rows, metrics)!
+    expect(round.model).toBe('drift')
+    expect(round.maePercent).toBeCloseTo(2.5)
+    expect(round.directionAccuracy).toBeCloseTo(51)
+    expect(rows.find(r => r.symbol === 'BTCUSDT')!.confidence).toBe(49)
+    expect(rows.find(r => r.symbol === 'ETHUSDT')!.confidence).toBeNull()
+  })
+
+  it('métricas de outra versão são ignoradas — nunca misturar rodadas', () => {
+    const metrics = metricsFixture('20260823-zzz-gbm')
+    const rows = mapScenarioRows(POINTS, tickers, metrics)
+    const round = buildRound(POINTS, rows, metrics)!
+    expect(round.maePercent).toBeNull()
+    expect(rows[0]!.confidence).toBeNull()
   })
 
   it('qualquer ponto em fallback marca a rodada como FALLBACK NAIVE', () => {
@@ -133,5 +173,29 @@ describe('gapTop', () => {
       Array.from({ length: 8 }, (_, i) => ticker(`S${i}USDT`, 100)),
     )
     expect(gapTop(rows, 5)).toHaveLength(5)
+  })
+})
+
+describe('mapMonteCarlo', () => {
+  const out: MonteCarloSeriesOut = {
+    symbol: 'BTCUSDT',
+    horizonDays: 7,
+    observed: [{ time: 200, value: 101 }, { time: 100, value: 100 }],
+    stepSeconds: 86_400,
+    paths: [[102, 104], [99, 97]],
+    simulatedCount: 1000,
+    classified: { best: 0, worst: 1, base: null },
+  }
+
+  it('ordena o observado e normaliza classified (null vira ausente)', () => {
+    const series = mapMonteCarlo(out)
+    expect(series.observed.map(p => p.time)).toEqual([100, 200])
+    expect(series.classified).toEqual({ best: 0, worst: 1, base: undefined })
+    expect(series.paths).toBe(out.paths)
+    expect(series.simulatedCount).toBe(1000)
+  })
+
+  it('sem classified da API, deixa a seleção para o front', () => {
+    expect(mapMonteCarlo({ ...out, classified: null }).classified).toBeUndefined()
   })
 })

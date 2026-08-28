@@ -29,7 +29,9 @@ export interface ForecastRound {
   /** Ex.: `EM VALIDAÇÃO`. */
   status: string
   generatedAt: string
-  maeUsdt: number | null
+  /** MAE do log-retorno no horizonte de 1 dia, em % (não é USDT). */
+  maePercent: number | null
+  /** Acerto de direção no horizonte de 1 dia, 0–100. */
   directionAccuracy: number | null
   horizons: readonly HorizonSummary[]
   /** Texto do resumo da rodada; `null` enquanto não houver. */

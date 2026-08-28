@@ -21,6 +21,8 @@ const props = defineProps<{
   series: MonteCarloSeries | null
   /** Incrementar reinicia o desenho progressivo com as mesmas trajetórias. */
   restartToken?: number
+  /** Primeira linha do estado vazio (ex.: sem simulação para este ativo vs sem rodada). */
+  emptyMessage?: string
 }>()
 
 /** Duração total do desenho progressivo: dentro de 1,6–2,2 s. */
@@ -706,10 +708,10 @@ defineExpose({ restart: startAnimation })
       role="status"
     >
       <p class="text-[15px] text-muted">
-        O modelo ainda não publicou previsões para este ativo.
+        {{ props.emptyMessage ?? 'O modelo ainda não publicou previsões para este ativo.' }}
       </p>
       <p class="mt-2 text-[13px] text-dimmed">
-        Quando a primeira rodada sair, esta área desenha as trajetórias simuladas a
+        Quando houver simulação, esta área desenha as trajetórias simuladas a
         partir do último dado observado, destacando melhor caso, cenário base e pior caso.
       </p>
     </div>
